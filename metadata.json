@@ -1,0 +1,8 @@
+{
+  "name": "Remix Remix Remix منظومة إدارة تموين مركز المحلة الكبرى - قاعدة بيانات المخابز والمديونيات",
+  "description": "نظام الإدارة التموينية وقاعدة بيانات المخابز والمديونيات - مديرية التموين والتجارة الداخلية بالغربية - إدارة تموين مركز المحلة الكبرى",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

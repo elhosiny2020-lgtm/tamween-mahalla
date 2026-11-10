@@ -1,0 +1,323 @@
+@import "tailwindcss";
+
+@layer base {
+  * {
+    font-family: 'Cairo', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+
+  body {
+    font-weight: 700;
+    color: #f8fafc;
+    background-color: #000000;
+    overflow-x: hidden;
+  }
+
+  input, select, textarea, button {
+    font-weight: 700;
+  }
+
+  /* Guarantee any input, select, or textarea with a white/light background has pure black text so numbers are always visible */
+  input.bg-white,
+  select.bg-white,
+  textarea.bg-white,
+  .bg-white input:not([class*="bg-slate-9"]):not([class*="bg-black"]),
+  .bg-white select:not([class*="bg-slate-9"]):not([class*="bg-black"]),
+  .bg-white textarea:not([class*="bg-slate-9"]):not([class*="bg-black"]) {
+    color: #000000 !important;
+  }
+}
+
+/* =========================================================
+   ANIMATED BUTTONS & INTERACTIVE FEEDBACK (مؤثرات تفاعلية حية)
+   ========================================================= */
+button,
+a[role="button"],
+.btn-interactive {
+  transition: transform 0.16s cubic-bezier(0.34, 1.56, 0.64, 1),
+              box-shadow 0.2s ease,
+              background-color 0.2s ease,
+              border-color 0.2s ease,
+              opacity 0.2s ease;
+  will-change: transform;
+}
+
+button:hover,
+a[role="button"]:hover,
+.btn-interactive:hover {
+  transform: translateY(-1.5px);
+}
+
+button:active,
+a[role="button"]:active,
+.btn-interactive:active {
+  transform: scale(0.94) translateY(1px) !important;
+}
+
+/* =========================================================
+   ANIMATED ICONS & SPECIAL EFFECTS (أيقونات متحركة وجذابة)
+   ========================================================= */
+.icon-animated {
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+button:hover .icon-animated,
+a:hover .icon-animated,
+.group:hover .icon-animated {
+  transform: scale(1.18) rotate(4deg);
+}
+
+.icon-spin-hover {
+  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+button:hover .icon-spin-hover {
+  transform: rotate(45deg) scale(1.15);
+}
+
+.icon-float,
+.icon-spin-slow,
+.pulse-glow,
+.shimmer-banner,
+.btn-glow-gold,
+.btn-glow-emerald,
+.animate-ping,
+.animate-bounce,
+.animate-pulse {
+  animation: none !important;
+}
+
+/* Enlarged bold numbers */
+.num-enlarged {
+  font-size: 0.95rem !important;
+  font-weight: 900 !important;
+  font-feature-settings: "tnum";
+  letter-spacing: -0.01em;
+}
+
+/* Stat card large numbers */
+.stat-num {
+  font-size: 1.65rem !important;
+  font-weight: 900 !important;
+  line-height: 1.2;
+}
+
+/* Professional row highlight */
+tr.row-selected {
+  background-color: #fde68a !important;
+  box-shadow: inset 0 0 0 2px #d97706, 0 4px 6px -1px rgba(217, 119, 6, 0.4) !important;
+  font-weight: 900 !important;
+}
+
+tr.row-selected td,
+tr.row-selected td * {
+  background-color: #fde68a !important;
+  color: #000000 !important;
+  border-top-color: #d97706 !important;
+  border-bottom-color: #d97706 !important;
+}
+
+/* Smooth Table Row Hover */
+tbody tr:hover {
+  background-color: rgba(245, 158, 11, 0.12);
+}
+
+/* Force pure black (#000000) text inside all report containers (.print-container) both on screen and in print/PDF */
+.print-container,
+.print-container * {
+  color: #000000 !important;
+  -webkit-text-fill-color: #000000 !important;
+  text-shadow: none !important;
+}
+
+.print-container th,
+.print-container thead tr {
+  background-color: #e2e8f0 !important;
+  color: #000000 !important;
+  border-color: #000000 !important;
+}
+
+.print-container tbody td {
+  color: #000000 !important;
+  border-color: #000000 !important;
+}
+
+.print-container tfoot tr,
+.print-container tfoot td {
+  background-color: #cbd5e1 !important;
+  color: #000000 !important;
+  border-color: #000000 !important;
+}
+
+/* Eliminate GPU compositing lag when opening/closing modal dialogs */
+.fixed.inset-0,
+.report-modal-overlay,
+.animate-in,
+.backdrop-blur-sm,
+.backdrop-blur-md {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  transition: none !important;
+  animation: none !important;
+}
+
+/* Print Styles for A4 Landscape & Full Print Isolation */
+@media print {
+  @page {
+    size: A4 landscape !important;
+    margin: 4mm !important;
+  }
+
+  html, body {
+    width: 100% !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    overflow: visible !important;
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+  }
+
+  .no-print,
+  body.has-print-modal #root > div > header,
+  body.has-print-modal #root > div > main,
+  body.has-print-modal #root > div > footer,
+  body.has-print-modal #root > div > .no-print {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  /* When printing from ReportModal */
+  body.has-print-modal .report-modal-overlay {
+    position: static !important;
+    inset: auto !important;
+    width: 100% !important;
+    height: auto !important;
+    background: #ffffff !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    display: block !important;
+    backdrop-filter: none !important;
+  }
+
+  body.has-print-modal .report-modal-dialog {
+    max-width: 100% !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    overflow: visible !important;
+  }
+
+  body.has-print-modal .report-scroll-wrapper {
+    overflow: visible !important;
+    max-height: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: #ffffff !important;
+  }
+
+  body.has-print-modal .report-zoom-wrapper {
+    zoom: 1 !important;
+    min-width: 100% !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .print-container,
+  .print-container * {
+    color: #000000 !important;
+    -webkit-text-fill-color: #000000 !important;
+  }
+
+  .print-container {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    overflow: visible !important;
+  }
+
+  /* High-density landscape table printing across full A4 sheet with high-contrast legibility */
+  .report-table-compact {
+    width: 100% !important;
+    max-width: 100% !important;
+    font-size: 8.5pt !important;
+    border-collapse: collapse !important;
+    table-layout: fixed !important;
+    margin: 0 !important;
+  }
+
+  .report-font-compact {
+    font-size: 7.5pt !important;
+  }
+  .report-font-standard {
+    font-size: 8.5pt !important;
+  }
+  .report-font-large {
+    font-size: 9.5pt !important;
+  }
+
+  .report-table-compact th,
+  .report-table-compact td {
+    border: 1px solid #000000 !important;
+    color: #000000 !important;
+    padding: 3px 2px !important;
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
+    line-height: 1.25 !important;
+    white-space: normal !important;
+    text-align: center !important;
+    vertical-align: middle !important;
+  }
+
+  .report-table-compact th {
+    background-color: #e2e8f0 !important;
+    color: #000000 !important;
+    font-weight: 900 !important;
+  }
+
+  table {
+    page-break-inside: auto;
+    width: 100% !important;
+  }
+
+  tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  tfoot {
+    display: table-footer-group;
+  }
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}

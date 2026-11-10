@@ -1,0 +1,20 @@
+{
+  "id": "/",
+  "name": "منظومة وزارة التموين - مركز المحلة الكبرى",
+  "short_name": "منظومة التموين",
+  "description": "منظومة إدارة المخابز والمديونيات والتنبيهات التموينية - مديرية التموين والتجارة الداخلية بالغربية",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "theme_color": "#0f172a",
+  "background_color": "#0f172a",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

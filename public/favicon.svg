@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fef08a" />
+      <stop offset="50%" stop-color="#eab308" />
+      <stop offset="100%" stop-color="#b45309" />
+    </linearGradient>
+    <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a" />
+      <stop offset="100%" stop-color="#1e293b" />
+    </linearGradient>
+  </defs>
+
+  <!-- Outer Circular Base -->
+  <circle cx="32" cy="32" r="30" fill="url(#shieldGrad)" stroke="url(#goldGrad)" stroke-width="2.5" />
+  
+  <!-- Egyptian Flag Ring Bands -->
+  <path d="M 6 32 A 26 26 0 0 1 58 32 Z" fill="#b91c1c" opacity="0.85" />
+  <rect x="6" y="27" width="52" height="10" fill="#ffffff" opacity="0.9" />
+  <path d="M 6 32 A 26 26 0 0 0 58 32 Z" fill="#000000" opacity="0.8" />
+  
+  <!-- Inner Shield -->
+  <path d="M 32 12 Q 46 16 44 34 Q 40 48 32 54 Q 24 48 20 34 Q 18 16 32 12 Z" fill="#0f172a" stroke="url(#goldGrad)" stroke-width="2" />
+
+  <!-- Wheat Sheaves (سنابل القمح التموينية) -->
+  <!-- Left sheaf -->
+  <path d="M 23 44 Q 19 36 21 26 Q 23 30 25 36 Q 24 40 23 44 Z" fill="url(#goldGrad)" />
+  <circle cx="20" cy="24" r="2" fill="url(#goldGrad)" />
+  <circle cx="18" cy="28" r="2" fill="url(#goldGrad)" />
+  <circle cx="19" cy="33" r="2" fill="url(#goldGrad)" />
+
+  <!-- Right sheaf -->
+  <path d="M 41 44 Q 45 36 43 26 Q 41 30 39 36 Q 40 40 41 44 Z" fill="url(#goldGrad)" />
+  <circle cx="44" cy="24" r="2" fill="url(#goldGrad)" />
+  <circle cx="46" cy="28" r="2" fill="url(#goldGrad)" />
+  <circle cx="45" cy="33" r="2" fill="url(#goldGrad)" />
+
+  <!-- Egyptian Golden Eagle (النسر المصري الذهبي) -->
+  <!-- Head & Crown -->
+  <path d="M 32 18 Q 34 16 36 17 L 34 20 L 33 22 L 31 22 L 30 20 Z" fill="url(#goldGrad)" />
+  <!-- Wings -->
+  <path d="M 32 23 L 26 25 L 23 32 L 27 34 L 30 28 Z" fill="url(#goldGrad)" />
+  <path d="M 32 23 L 38 25 L 41 32 L 37 34 L 34 28 Z" fill="url(#goldGrad)" />
+  <!-- Body & Chest Shield -->
+  <path d="M 30 23 L 34 23 L 35 34 L 32 37 L 29 34 Z" fill="#fef08a" stroke="#b45309" stroke-width="0.8" />
+  <!-- Tail feathers -->
+  <path d="M 29 36 L 35 36 L 33 46 L 31 46 Z" fill="url(#goldGrad)" />
+  <!-- Bread Loaf Base Symbol (رمز رغيف الخبز البلدي المدعم) -->
+  <ellipse cx="32" cy="49" rx="7" ry="2.5" fill="#fde68a" stroke="#d97706" stroke-width="1" />
+</svg>
