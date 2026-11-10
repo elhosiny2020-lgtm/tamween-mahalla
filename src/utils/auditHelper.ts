@@ -211,17 +211,62 @@ export function calculateAverageDifference(avg2025: string, avg2023: string): st
 }
 
 /**
+ * دالة الحصول على تاريخ اليوم بصيغة يوم/شهر/سنة (DD/MM/YYYY) - اليوم على الشمال، الشهر في الوسط، السنة في اليمين
+ */
+export function getCurrentDateDDMMYYYY(now: Date = new Date()): string {
+  const day = String(now.getDate()).padStart(2, '0');
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const year = now.getFullYear();
+  return `${day}/${month}/${year}`;
+}
+
+/**
+ * تحويل أي صيغة تاريخ (DD/MM/YYYY أو YYYY-MM-DD) إلى صيغة قياسية YYYY-MM-DD للمقارنات والفرز
+ */
+export function parseDateToISO(dateStr?: string): string {
+  if (!dateStr || !dateStr.trim()) return '';
+  const trimmed = dateStr.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return trimmed;
+  }
+  const dmyMatch = trimmed.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+  if (dmyMatch) {
+    const day = String(dmyMatch[1]).padStart(2, '0');
+    const month = String(dmyMatch[2]).padStart(2, '0');
+    const year = dmyMatch[3];
+    return `${year}-${month}-${day}`;
+  }
+  const ymdMatch = trimmed.match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})$/);
+  if (ymdMatch) {
+    const year = ymdMatch[1];
+    const month = String(ymdMatch[2]).padStart(2, '0');
+    const day = String(ymdMatch[3]).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+  const d = new Date(trimmed);
+  if (!isNaN(d.getTime())) {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+  return '';
+}
+
+/**
  * دالة مساعدة لتنسيق التواريخ بالمنظومة إلى صيغة (يوم/شهر/سنة DD/MM/YYYY)
+ * اليوم على الشمال، الشهر في الوسط، السنة على اليمين
  */
 export function formatDateDDMMYYYY(dateStr?: string): string {
   if (!dateStr || !dateStr.trim()) return '';
   const trimmed = dateStr.trim();
   if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
     const [y, m, d] = trimmed.split('-');
-    return `${d}/${m}/${y}`;
+    return `${d.padStart(2, '0')}/${m.padStart(2, '0')}/${y}`;
   }
-  if (/^\d{2}\/\d{2}\/\d{4}$/.test(trimmed)) {
-    return trimmed;
+  const dmyMatch = trimmed.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+  if (dmyMatch) {
+    return `${String(dmyMatch[1]).padStart(2, '0')}/${String(dmyMatch[2]).padStart(2, '0')}/${dmyMatch[3]}`;
   }
   const d = new Date(trimmed);
   if (!isNaN(d.getTime())) {
@@ -285,6 +330,63 @@ export function calculateNetRemainingDebt(
     (Number(remainingAdded) || 0) +
     (Number(remainingDisposal) || 0)
   );
+}
+
+/**
+ * 9.ب إعادة احتساب قيد المديونية بالكامل وتحديث بيانات المخبز المرتبط به لضمان تطابق جميع الجداول
+ */
+export function recalculateDebtRecord(debt: DebtRecord, linkedBakery?: Bakery): DebtRecord {
+  const violationAmount = Number(debt.violationAmount) || 0;
+  const oldViolations = Number(debt.oldViolations) || 0;
+  const paidViolationAmount = Number(debt.paidViolationAmount) || 0;
+  const { totalViolations, remainingViolations } = calculateRemainingViolations(
+    violationAmount,
+    oldViolations,
+    paidViolationAmount
+  );
+
+  const addedAmount = Number(debt.addedAmount) || 0;
+  const paidAddedAmount = Number(debt.paidAddedAmount) || 0;
+  const remainingAdded = calculateRemainingAdded(addedAmount, paidAddedAmount);
+
+  const disposalBags = Number(debt.disposalBags) || 0;
+  const disposalBagPrice = Number(debt.disposalBagPrice) || 0;
+  const disposalMultiplier = Number(debt.disposalMultiplier) || 1;
+  const disposalValue =
+    disposalBags > 0 && disposalBagPrice > 0
+      ? calculateDisposalValue(disposalBags, disposalBagPrice, disposalMultiplier)
+      : Number(debt.disposalValue) || 0;
+  const paidDisposalAmount = Number(debt.paidDisposalAmount) || 0;
+  const remainingDisposal = calculateRemainingDisposal(disposalValue, paidDisposalAmount);
+
+  const netRemainingDebt = calculateNetRemainingDebt(
+    remainingViolations,
+    remainingAdded,
+    remainingDisposal
+  );
+
+  return {
+    ...debt,
+    bakeryOwnerName: linkedBakery ? linkedBakery.bakeryOwnerName : debt.bakeryOwnerName,
+    machineNumber: linkedBakery ? linkedBakery.machineNumber : debt.machineNumber,
+    village: linkedBakery ? linkedBakery.village : debt.village,
+    localUnit: linkedBakery ? linkedBakery.localUnit : debt.localUnit,
+    violationAmount,
+    oldViolations,
+    totalViolations,
+    paidViolationAmount,
+    remainingViolations,
+    addedAmount,
+    paidAddedAmount,
+    remainingAdded,
+    disposalBags,
+    disposalBagPrice,
+    disposalMultiplier,
+    disposalValue,
+    paidDisposalAmount,
+    remainingDisposal,
+    netRemainingDebt,
+  };
 }
 
 /**
@@ -572,8 +674,8 @@ export function filterDebtsByAdvancedCriteria(
     isOverdueCheck,
   } = criteria;
 
-  const cleanFrom = dateFrom.trim();
-  const cleanTo = dateTo.trim();
+  const cleanFrom = parseDateToISO(dateFrom);
+  const cleanTo = parseDateToISO(dateTo);
   const q = searchTerm.trim().toLowerCase();
 
   return debts.filter((d) => {
@@ -585,7 +687,7 @@ export function filterDebtsByAdvancedCriteria(
 
     if (cleanFrom || cleanTo) {
       const recordDates = [d.violationDate, d.disposalDate]
-        .map((dt) => (dt || '').trim())
+        .map((dt) => parseDateToISO(dt))
         .filter(Boolean);
 
       if (recordDates.length === 0) return false;
@@ -618,7 +720,8 @@ export function filterDebtsByAdvancedCriteria(
         d.violationReceiptNumber.includes(q) ||
         d.addedReceiptNumber.includes(q) ||
         d.disposalReceiptNumber.includes(q) ||
-        (d.violationDate || '').includes(q);
+        (d.violationDate || '').includes(q) ||
+        formatDateDDMMYYYY(d.violationDate).includes(q);
       if (!match) return false;
     }
 

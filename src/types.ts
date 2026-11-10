@@ -53,6 +53,7 @@ export interface Bakery {
   leaseAgreementDate: string; // تاريخ عقد الإيجار
 
   notes?: string;
+  lastUpdated?: string; // تاريخ آخر تحديث (DD/MM/YYYY)
 
   // سجل النشاط والتعديلات التاريخية للمخبز
   activityLog?: BakeryActivityLogItem[];
@@ -148,6 +149,7 @@ export interface ColumnTitles {
   bakeryLicenseDate: string;
   leaseAgreementDate: string;
   taxCardDate: string;
+  lastUpdated?: string;
   actions: string;
 }
 

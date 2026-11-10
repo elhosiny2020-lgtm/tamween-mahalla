@@ -165,6 +165,7 @@ export const DEFAULT_COLUMN_TITLES: ColumnTitles = {
   bakeryLicenseDate: 'رخصة المخبز',
   leaseAgreementDate: 'عقد الإيجار',
   taxCardDate: 'البطاقة الضريبية',
+  lastUpdated: 'تاريخ آخر تحديث',
   actions: 'العمليات والإجراءات'
 };
 

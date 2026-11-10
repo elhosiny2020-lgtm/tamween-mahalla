@@ -27,8 +27,9 @@ import {
 
 import { WeeklyInstallmentsModal } from './WeeklyInstallmentsModal';
 import { SupplyFinesCalculatorModal } from './SupplyFinesCalculatorModal';
+import { SmartDateInput } from './SmartDateInput';
 import { printHtmlElementA4 } from '../utils/pdfHelper';
-import { filterDebtsByAdvancedCriteria, formatDateDDMMYYYY } from '../utils/auditHelper';
+import { filterDebtsByAdvancedCriteria, formatDateDDMMYYYY, recalculateDebtRecord } from '../utils/auditHelper';
 
 export const getDebtOverdueInfo = (
   dateStr?: string,
@@ -72,6 +73,7 @@ interface DebtsViewProps {
   filterBakeryId?: string;
   onClearBakeryFilter?: () => void;
   onOpenReportModal?: (tab?: 'bakeries' | 'debts' | 'bakery-debts' | 'users') => void;
+  onRecalculateAll?: () => void;
 }
 
 export const DebtsView: React.FC<DebtsViewProps> = ({
@@ -91,6 +93,7 @@ export const DebtsView: React.FC<DebtsViewProps> = ({
   filterBakeryId,
   onClearBakeryFilter,
   onOpenReportModal,
+  onRecalculateAll,
 }) => {
   const debtsPrintRef = React.useRef<HTMLDivElement>(null);
   const isViewer = currentUser?.role === 'viewer';
@@ -458,6 +461,18 @@ export const DebtsView: React.FC<DebtsViewProps> = ({
               جدولة الدفعات الأسبوعية (&gt; 20 ألف)
             </button>
 
+            {onRecalculateAll && (
+              <button
+                type="button"
+                onClick={onRecalculateAll}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-700 hover:from-indigo-500 hover:to-purple-500 text-white rounded-xl text-xs font-black shadow-md border border-indigo-300 transition-all duration-300 transform hover:scale-105 active:scale-95 cursor-pointer"
+                title="إعادة احتساب وتحديث كافة العمليات الحسابية للمديونيات والحصص عبر جميع الجداول"
+              >
+                <RotateCcw className="w-4 h-4 text-amber-300" />
+                <span>إعادة احتساب العمليات الحسابية 🔄</span>
+              </button>
+            )}
+
             <button
               onClick={handleExportCSV}
               className="inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-800 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-sm border border-emerald-600/50 transition-all duration-300 transform hover:scale-105 active:scale-95 cursor-pointer"
@@ -573,22 +588,15 @@ export const DebtsView: React.FC<DebtsViewProps> = ({
                 className="flex items-center gap-1.5 text-[11px] font-black text-amber-200 mb-1"
               >
                 <Calendar className="w-3.5 h-3.5 text-amber-400" />
-                <span>من تاريخ (يوم/شهر/سنة DD/MM/YYYY):</span>
+                <span>من تاريخ (dd/mm/yyyy):</span>
               </label>
-              <input
+              <SmartDateInput
                 id="debt-advanced-date-from"
-                aria-label="من تاريخ"
-                type="date"
-                lang="ar-EG"
+                ariaLabel="من تاريخ"
+                theme="dark"
                 value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-                className="w-full px-3 py-2 bg-black border-2 border-amber-500/50 focus:border-amber-400 rounded-xl font-mono font-black text-white text-xs cursor-pointer"
+                onChange={(val) => setDateFrom(val)}
               />
-              {dateFrom && (
-                <span className="block text-[10px] font-black text-amber-300 bg-amber-950/80 border border-amber-500/40 rounded px-1.5 py-0.5 mt-1 text-center font-mono">
-                  📅 المحدد: {formatDateDDMMYYYY(dateFrom)}
-                </span>
-              )}
             </div>
 
             {/* 2. Date To (إلى تاريخ) */}
@@ -598,22 +606,15 @@ export const DebtsView: React.FC<DebtsViewProps> = ({
                 className="flex items-center gap-1.5 text-[11px] font-black text-amber-200 mb-1"
               >
                 <Calendar className="w-3.5 h-3.5 text-amber-400" />
-                <span>إلى تاريخ (يوم/شهر/سنة DD/MM/YYYY):</span>
+                <span>إلى تاريخ (dd/mm/yyyy):</span>
               </label>
-              <input
+              <SmartDateInput
                 id="debt-advanced-date-to"
-                aria-label="إلى تاريخ"
-                type="date"
-                lang="ar-EG"
+                ariaLabel="إلى تاريخ"
+                theme="dark"
                 value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-                className="w-full px-3 py-2 bg-black border-2 border-amber-500/50 focus:border-amber-400 rounded-xl font-mono font-black text-white text-xs cursor-pointer"
+                onChange={(val) => setDateTo(val)}
               />
-              {dateTo && (
-                <span className="block text-[10px] font-black text-amber-300 bg-amber-950/80 border border-amber-500/40 rounded px-1.5 py-0.5 mt-1 text-center font-mono">
-                  📅 المحدد: {formatDateDDMMYYYY(dateTo)}
-                </span>
-              )}
             </div>
 
             {/* 3. Violation Type (حسب نوع المخالفة) */}
@@ -903,17 +904,17 @@ export const DebtsView: React.FC<DebtsViewProps> = ({
         </h2>
       </div>
 
-      {/* Grouped Headers Debts Table */}
-      <div className="bg-white border-2 border-slate-400 rounded-2xl overflow-hidden shadow-2xl text-black">
+      {/* Grouped Headers Debts Table (Original Royal Colorful Dark Theme) */}
+      <div className="bg-slate-900 border-2 border-slate-800 rounded-2xl overflow-hidden shadow-2xl">
         <div className="overflow-x-auto max-h-[650px] relative">
-          <table className="w-full text-center border-collapse text-xs text-black">
+          <table className="w-full text-center border-collapse text-xs">
             {/* Super Headers */}
-            <thead className="sticky top-0 z-20 bg-slate-200 text-black font-black">
-              <tr className="border-b-2 border-black">
+            <thead className="sticky top-0 z-20 bg-black text-white font-black">
+              <tr className="border-b border-slate-800">
                 {/* Index Column */}
                 <th
                   rowSpan={2}
-                  className="py-2.5 px-1 bg-slate-300 border-l border-black text-black w-10 text-center font-black"
+                  className="py-2.5 px-1 bg-black border-l border-slate-800 text-slate-300 w-10 text-center"
                 >
                   م
                 </th>
@@ -921,43 +922,43 @@ export const DebtsView: React.FC<DebtsViewProps> = ({
                 {/* 1. Basic Info (Owner Name, Machine, Village, Local Unit) */}
                 <th
                   colSpan={4}
-                  className="py-2.5 px-2 bg-slate-300 border-l border-black text-black font-black"
+                  className="py-2.5 px-2 bg-black border-l border-slate-800 text-amber-300"
                 >
                   1. البيانات الأساسية وموقع المخبز
                 </th>
                 <th
                   colSpan={6}
-                  className="py-2.5 px-2 bg-red-100 border-l border-black text-black font-black"
+                  className="py-2.5 px-2 bg-red-950 border-l border-slate-800 text-rose-200"
                 >
                   2. مخالفات المخبز
                 </th>
                 <th
                   colSpan={5}
-                  className="py-2.5 px-2 bg-emerald-100 border-l border-black text-black font-black"
+                  className="py-2.5 px-2 bg-emerald-950 border-l border-slate-800 text-emerald-200"
                 >
-                  3. سداد المخالفات (الإيصال والسداد)
+                  3. سداد المخالفات
                 </th>
                 <th
                   colSpan={6}
-                  className="py-2.5 px-2 bg-blue-100 border-l border-black text-black font-black"
+                  className="py-2.5 px-2 bg-blue-950 border-l border-slate-800 text-blue-200"
                 >
                   4. المنصرف وسداد المنصرف (المضاف)
                 </th>
                 <th
                   colSpan={5}
-                  className="py-2.5 px-2 bg-amber-100 border-l border-black text-black font-black"
+                  className="py-2.5 px-2 bg-amber-950 border-l border-slate-800 text-amber-200"
                 >
                   5. التصرف من المخبز
                 </th>
                 <th
                   colSpan={5}
-                  className="py-2.5 px-2 bg-teal-100 border-l border-black text-black font-black"
+                  className="py-2.5 px-2 bg-teal-950 border-l border-slate-800 text-teal-200"
                 >
-                  6. السداد من التصرف (الإيصال والسداد)
+                  6. السداد من التصرف
                 </th>
                 <th
                   rowSpan={2}
-                  className="py-2.5 px-3 bg-red-200 border-l border-black text-black text-xs font-black min-w-[130px]"
+                  className="py-2.5 px-3 bg-gradient-to-b from-red-900 to-black border-l border-slate-800 text-amber-300 text-xs font-black min-w-[130px]"
                 >
                   صافي المتبقي على صاحب المخبز
                 </th>
@@ -965,72 +966,72 @@ export const DebtsView: React.FC<DebtsViewProps> = ({
                 {/* Actions Column moved to the END of the table */}
                 <th
                   rowSpan={2}
-                  className="py-2.5 px-2 bg-amber-200 border-l border-black text-black min-w-[100px] no-print text-center font-black"
+                  className="py-2.5 px-2 bg-gradient-to-r from-slate-900 to-amber-950 border-l border-slate-800 text-amber-300 min-w-[100px] no-print text-center"
                 >
                   الإجراءات
                 </th>
               </tr>
 
               {/* Sub Columns Headers */}
-              <tr className="bg-slate-100 text-[11px] text-black font-black border-b-2 border-black">
-                {/* 1. Basic Info Sub-headers (Index and Actions are rowSpan 2 above) */}
-                <th className="py-2 px-2 border-l border-black min-w-[150px] text-black">اسم صاحب المخبز</th>
-                <th className="py-2 px-2 border-l border-black min-w-[90px] text-black">رقم الماكينة</th>
-                <th className="py-2 px-2 border-l border-black min-w-[80px] text-black">القرية</th>
-                <th className="py-2 px-2 border-l border-black min-w-[90px] text-black">الوحدة التابعة</th>
+              <tr className="bg-slate-950 text-[11px] text-slate-300 font-black border-b border-slate-800">
+                {/* 1. Basic Info Sub-headers */}
+                <th className="py-2 px-2 border-l border-slate-800 min-w-[150px]">اسم صاحب المخبز</th>
+                <th className="py-2 px-2 border-l border-slate-800 min-w-[90px]">رقم الماكينة</th>
+                <th className="py-2 px-2 border-l border-slate-800 min-w-[80px]">القرية</th>
+                <th className="py-2 px-2 border-l border-slate-800 min-w-[90px]">الوحدة التابعة</th>
 
                 {/* 2. Violations */}
-                <th className="py-2 px-2 border-l border-black min-w-[85px] text-black">تاريخ العملية</th>
-                <th className="py-2 px-2 border-l border-black min-w-[120px] text-black">الجهة المحررة</th>
-                <th className="py-2 px-2 border-l border-black min-w-[130px] text-black">نوع المخالفة</th>
-                <th className="py-2 px-2 border-l border-black text-black">قيمة المخالفة</th>
-                <th className="py-2 px-2 border-l border-black text-black">مخالفات قديمة</th>
-                <th className="py-2 px-2 border-l border-black bg-red-200/70 text-black font-black">
+                <th className="py-2 px-2 border-l border-slate-800 min-w-[90px]">تاريخ العملية</th>
+                <th className="py-2 px-2 border-l border-slate-800 min-w-[120px]">الجهة المحررة</th>
+                <th className="py-2 px-2 border-l border-slate-800 min-w-[130px]">نوع المخالفة</th>
+                <th className="py-2 px-2 border-l border-slate-800">قيمة المخالفة</th>
+                <th className="py-2 px-2 border-l border-slate-800">مخالفات قديمة</th>
+                <th className="py-2 px-2 border-l border-slate-800 bg-red-950/60 text-rose-200">
                   إجمالي المخالفات
                 </th>
 
                 {/* 3. Violation Payment */}
-                <th className="py-2 px-2 border-l border-black min-w-[85px] text-black bg-emerald-50">تاريخ السداد</th>
-                <th className="py-2 px-2 border-l border-black min-w-[80px] text-black bg-emerald-50">رقم الإيصال</th>
-                <th className="py-2 px-2 border-l border-black min-w-[85px] text-black bg-emerald-50">نوع السداد</th>
-                <th className="py-2 px-2 border-l border-black text-black bg-emerald-100 font-black">المبلغ المسدد</th>
-                <th className="py-2 px-2 border-l border-black bg-emerald-200/70 text-black font-black">
+                <th className="py-2 px-2 border-l border-slate-800 min-w-[90px]">تاريخ السداد</th>
+                <th className="py-2 px-2 border-l border-slate-800 min-w-[80px]">رقم الإيصال</th>
+                <th className="py-2 px-2 border-l border-slate-800 min-w-[85px]">نوع السداد</th>
+                <th className="py-2 px-2 border-l border-slate-800 text-emerald-300">المبلغ المسدد</th>
+                <th className="py-2 px-2 border-l border-slate-800 bg-emerald-950/60 text-emerald-200">
                   المتبقي
                 </th>
 
                 {/* 4. Added (المضاف) */}
-                <th className="py-2 px-2 border-l border-black text-black">المضاف للمخبز</th>
-                <th className="py-2 px-2 border-l border-black min-w-[85px] text-black bg-blue-50">تاريخ السداد</th>
-                <th className="py-2 px-2 border-l border-black min-w-[80px] text-black bg-blue-50">رقم الإيصال</th>
-                <th className="py-2 px-2 border-l border-black min-w-[85px] text-black bg-blue-50">نوع السداد</th>
-                <th className="py-2 px-2 border-l border-black text-black bg-blue-100 font-black">المسدد من المضاف</th>
-                <th className="py-2 px-2 border-l border-black bg-blue-200/70 text-black font-black">
+                <th className="py-2 px-2 border-l border-slate-800">المضاف للمخبز</th>
+                <th className="py-2 px-2 border-l border-slate-800 min-w-[90px]">تاريخ السداد</th>
+                <th className="py-2 px-2 border-l border-slate-800 min-w-[80px]">رقم الإيصال</th>
+                <th className="py-2 px-2 border-l border-slate-800 min-w-[85px]">نوع السداد</th>
+                <th className="py-2 px-2 border-l border-slate-800 text-blue-300">المسدد من المضاف</th>
+                <th className="py-2 px-2 border-l border-slate-800 bg-blue-950/60 text-blue-200">
                   المتبقي
                 </th>
 
                 {/* 5. Disposal (التصرف) */}
-                <th className="py-2 px-2 border-l border-black min-w-[85px] text-black">تاريخ التصرف</th>
-                <th className="py-2 px-1 border-l border-black text-black">الشكاير</th>
-                <th className="py-2 px-2 border-l border-black text-black">سعر الشيكارة</th>
-                <th className="py-2 px-1 border-l border-black text-black">المضاعفة</th>
-                <th className="py-2 px-2 border-l border-black bg-amber-200/70 text-black font-black">
+                <th className="py-2 px-2 border-l border-slate-800 min-w-[90px]">تاريخ التصرف</th>
+                <th className="py-2 px-1 border-l border-slate-800">الشكاير</th>
+                <th className="py-2 px-2 border-l border-slate-800">سعر الشيكارة</th>
+                <th className="py-2 px-1 border-l border-slate-800">المضاعفة</th>
+                <th className="py-2 px-2 border-l border-slate-800 bg-amber-950/60 text-amber-200">
                   قيمة التصرف
                 </th>
 
                 {/* 6. Disposal Payment */}
-                <th className="py-2 px-2 border-l border-black text-black bg-teal-50">قيمة التصرف</th>
-                <th className="py-2 px-2 border-l border-black min-w-[85px] text-black bg-teal-50">تاريخ السداد</th>
-                <th className="py-2 px-2 border-l border-black min-w-[80px] text-black bg-teal-50">رقم الإيصال</th>
-                <th className="py-2 px-2 border-l border-black min-w-[85px] text-black bg-teal-50">نوع السداد</th>
-                <th className="py-2 px-2 border-l border-black text-black bg-teal-100 font-black">السداد من التصرف</th>
+                <th className="py-2 px-2 border-l border-slate-800">قيمة التصرف</th>
+                <th className="py-2 px-2 border-l border-slate-800 min-w-[90px]">تاريخ السداد</th>
+                <th className="py-2 px-2 border-l border-slate-800 min-w-[80px]">رقم الإيصال</th>
+                <th className="py-2 px-2 border-l border-slate-800 min-w-[85px]">نوع السداد</th>
+                <th className="py-2 px-2 border-l border-slate-800 text-teal-300">السداد من التصرف</th>
               </tr>
             </thead>
 
-            {/* Table Body with Pure Black (#000000) Numbers & Receipt/Payment Data */}
-            <tbody className="divide-y divide-slate-300 font-black text-black bg-white">
+            {/* Table Body */}
+            <tbody className="divide-y divide-slate-800 font-bold">
               {filteredDebts.length === 0 ? (
-                <tr className="bg-white">
-                  <td colSpan={34} className="py-10 text-center text-black font-black">
+                <tr>
+                  <td colSpan={34} className="py-10 text-center text-slate-400 font-black">
                     لا توجد أي قيود مديونية مطابقة لمعايير البحث الحالية
                   </td>
                 </tr>
@@ -1041,32 +1042,32 @@ export const DebtsView: React.FC<DebtsViewProps> = ({
                     <tr
                       key={d.id}
                       onClick={() => setSelectedRowId(d.id)}
-                      className={`cursor-pointer transition-colors text-black ${
+                      className={`cursor-pointer transition-colors ${
                         isSelected
                           ? 'row-selected'
                           : index % 2 === 0
-                          ? 'bg-white hover:bg-amber-50'
-                          : 'bg-slate-100/90 hover:bg-amber-50'
+                          ? 'bg-slate-900/90 hover:bg-slate-800/90'
+                          : 'bg-slate-950 hover:bg-slate-800/90'
                       }`}
                     >
                       {/* 1. Basic Info - Index on the RIGHT side */}
-                      <td className="py-2.5 px-1 border-l border-slate-300 text-black num-enlarged font-black text-center">
+                      <td className="py-2.5 px-1 border-l border-slate-800 text-slate-400 num-enlarged text-center">
                         {index + 1}
                       </td>
 
-                      <td className="py-2.5 px-2 border-l border-slate-300 font-black text-black text-right">
+                      <td className="py-2.5 px-2 border-l border-slate-800 font-black text-slate-100 text-right">
                         {d.bakeryOwnerName}
                       </td>
-                      <td className="py-2.5 px-2 border-l border-slate-300 num-enlarged font-black text-black bg-amber-50/70">
+                      <td className="py-2.5 px-2 border-l border-slate-800 num-enlarged font-black text-amber-300">
                         {d.machineNumber}
                       </td>
-                      <td className="py-2.5 px-2 border-l border-slate-300 font-black text-black">{d.village}</td>
-                      <td className="py-2.5 px-2 border-l border-slate-300 font-black text-black">{d.localUnit}</td>
+                      <td className="py-2.5 px-2 border-l border-slate-800 text-slate-200">{d.village}</td>
+                      <td className="py-2.5 px-2 border-l border-slate-800 text-slate-400">{d.localUnit}</td>
 
                       {/* 2. Violations */}
-                      <td className="py-2.5 px-2 border-l border-slate-300 num-enlarged font-black text-black">
+                      <td className="py-2.5 px-2 border-l border-slate-800 num-enlarged text-slate-300">
                         <div>
-                          <span>{formatDateDDMMYYYY(d.violationDate) || '-'}</span>
+                          <span dir="ltr" className="inline-block font-mono">{formatDateDDMMYYYY(d.violationDate) || '-'}</span>
                           {(() => {
                             const { isOverdue, daysElapsed } = getDebtOverdueInfo(
                               d.violationDate || d.disposalDate,
@@ -1075,7 +1076,7 @@ export const DebtsView: React.FC<DebtsViewProps> = ({
                             if (isOverdue) {
                               return (
                                 <span
-                                  className="block text-[9.5px] font-black text-black bg-rose-200 border border-rose-500 rounded px-1 mt-0.5"
+                                  className="block text-[9.5px] font-black text-rose-300 bg-rose-950/90 border border-rose-600/60 rounded px-1 mt-0.5"
                                   title={`مر ${daysElapsed} يوماً على تحرير الغرامة دون سداد`}
                                 >
                                   محرر منذ {daysElapsed} يوم
@@ -1086,104 +1087,104 @@ export const DebtsView: React.FC<DebtsViewProps> = ({
                           })()}
                         </div>
                       </td>
-                      <td className="py-2.5 px-2 border-l border-slate-300 text-xs font-black text-black">
+                      <td className="py-2.5 px-2 border-l border-slate-800 text-xs font-black text-slate-200">
                         {d.issuingEntity}
                       </td>
-                      <td className="py-2.5 px-2 border-l border-slate-300 text-xs text-black font-black">
+                      <td className="py-2.5 px-2 border-l border-slate-800 text-xs text-rose-300 font-black">
                         {d.violationType}
                       </td>
-                      <td className="py-2.5 px-2 border-l border-slate-300 num-enlarged font-black text-black">
+                      <td className="py-2.5 px-2 border-l border-slate-800 num-enlarged text-slate-200">
                         {d.violationAmount?.toLocaleString()}
                       </td>
-                      <td className="py-2.5 px-2 border-l border-slate-300 num-enlarged font-black text-black">
+                      <td className="py-2.5 px-2 border-l border-slate-800 num-enlarged text-slate-400">
                         {d.oldViolations?.toLocaleString()}
                       </td>
-                      <td className="py-2.5 px-2 border-l border-slate-300 num-enlarged font-black bg-red-100 text-black">
+                      <td className="py-2.5 px-2 border-l border-slate-800 num-enlarged font-black bg-red-950/40 text-rose-200">
                         {d.totalViolations?.toLocaleString()}
                       </td>
 
-                      {/* 3. Violation Payment (سداد المخالفات والإيصال) */}
-                      <td className="py-2.5 px-2 border-l border-slate-300 num-enlarged font-black text-black bg-emerald-50/50">
-                        {formatDateDDMMYYYY(d.violationPaymentDate) || '-'}
+                      {/* 3. Violation Payment */}
+                      <td className="py-2.5 px-2 border-l border-slate-800 num-enlarged text-slate-300">
+                        <span dir="ltr" className="inline-block font-mono">{formatDateDDMMYYYY(d.violationPaymentDate) || '-'}</span>
                       </td>
-                      <td className="py-2.5 px-2 border-l border-slate-300 num-enlarged font-black text-black bg-emerald-50/50">
+                      <td className="py-2.5 px-2 border-l border-slate-800 num-enlarged text-slate-300">
                         {d.violationReceiptNumber || '-'}
                       </td>
-                      <td className="py-2.5 px-2 border-l border-slate-300 bg-emerald-50/50">
-                        <span className="px-2 py-0.5 rounded text-[10px] bg-white text-black font-black border border-slate-400">
+                      <td className="py-2.5 px-2 border-l border-slate-800">
+                        <span className="px-2 py-0.5 rounded text-[10px] bg-slate-800 text-slate-200 font-black border border-slate-700">
                           {d.violationPaymentMethod}
                         </span>
                       </td>
-                      <td className="py-2.5 px-2 border-l border-slate-300 num-enlarged font-black text-black bg-emerald-100/80">
+                      <td className="py-2.5 px-2 border-l border-slate-800 num-enlarged font-black text-emerald-400">
                         {d.paidViolationAmount?.toLocaleString()}
                       </td>
-                      <td className="py-2.5 px-2 border-l border-slate-300 num-enlarged font-black bg-emerald-200/80 text-black">
+                      <td className="py-2.5 px-2 border-l border-slate-800 num-enlarged font-black bg-emerald-950/30 text-emerald-200">
                         {d.remainingViolations?.toLocaleString()}
                       </td>
 
-                      {/* 4. Added (المضاف وسداده والإيصال) */}
-                      <td className="py-2.5 px-2 border-l border-slate-300 num-enlarged font-black text-black bg-blue-50/50">
+                      {/* 4. Added (المضاف) */}
+                      <td className="py-2.5 px-2 border-l border-slate-800 num-enlarged text-slate-200">
                         {d.addedAmount?.toLocaleString()}
                       </td>
-                      <td className="py-2.5 px-2 border-l border-slate-300 num-enlarged font-black text-black bg-blue-50/50">
-                        {formatDateDDMMYYYY(d.addedPaymentDate) || '-'}
+                      <td className="py-2.5 px-2 border-l border-slate-800 num-enlarged text-slate-300">
+                        <span dir="ltr" className="inline-block font-mono">{formatDateDDMMYYYY(d.addedPaymentDate) || '-'}</span>
                       </td>
-                      <td className="py-2.5 px-2 border-l border-slate-300 num-enlarged font-black text-black bg-blue-50/50">
+                      <td className="py-2.5 px-2 border-l border-slate-800 num-enlarged text-slate-300">
                         {d.addedReceiptNumber || '-'}
                       </td>
-                      <td className="py-2.5 px-2 border-l border-slate-300 bg-blue-50/50">
-                        <span className="px-2 py-0.5 rounded text-[10px] bg-white text-black font-black border border-slate-400">
+                      <td className="py-2.5 px-2 border-l border-slate-800">
+                        <span className="px-2 py-0.5 rounded text-[10px] bg-slate-800 text-slate-200 font-black border border-slate-700">
                           {d.addedPaymentMethod}
                         </span>
                       </td>
-                      <td className="py-2.5 px-2 border-l border-slate-300 num-enlarged font-black text-black bg-blue-100/80">
+                      <td className="py-2.5 px-2 border-l border-slate-800 num-enlarged font-black text-blue-400">
                         {d.paidAddedAmount?.toLocaleString()}
                       </td>
-                      <td className="py-2.5 px-2 border-l border-slate-300 num-enlarged font-black bg-blue-200/80 text-black">
+                      <td className="py-2.5 px-2 border-l border-slate-800 num-enlarged font-black bg-blue-950/30 text-blue-200">
                         {d.remainingAdded?.toLocaleString()}
                       </td>
 
                       {/* 5. Disposal (التصرف) */}
-                      <td className="py-2.5 px-2 border-l border-slate-300 num-enlarged font-black text-black bg-amber-50/50">
-                        {formatDateDDMMYYYY(d.disposalDate) || '-'}
+                      <td className="py-2.5 px-2 border-l border-slate-800 num-enlarged text-slate-300">
+                        <span dir="ltr" className="inline-block font-mono">{formatDateDDMMYYYY(d.disposalDate) || '-'}</span>
                       </td>
-                      <td className="py-2.5 px-1 border-l border-slate-300 num-enlarged font-black text-black bg-amber-50/50">
+                      <td className="py-2.5 px-1 border-l border-slate-800 num-enlarged text-slate-200">
                         {d.disposalBags}
                       </td>
-                      <td className="py-2.5 px-2 border-l border-slate-300 num-enlarged font-black text-black bg-amber-50/50">
+                      <td className="py-2.5 px-2 border-l border-slate-800 num-enlarged text-slate-300">
                         {d.disposalBagPrice?.toLocaleString()}
                       </td>
-                      <td className="py-2.5 px-1 border-l border-slate-300 num-enlarged font-black text-black bg-amber-50/50">
+                      <td className="py-2.5 px-1 border-l border-slate-800 num-enlarged font-black text-amber-400">
                         {d.disposalMultiplier}x
                       </td>
-                      <td className="py-2.5 px-2 border-l border-slate-300 num-enlarged font-black bg-amber-200/80 text-black">
+                      <td className="py-2.5 px-2 border-l border-slate-800 num-enlarged font-black bg-amber-950/40 text-amber-200">
                         {d.disposalValue?.toLocaleString()}
                       </td>
 
-                      {/* 6. Disposal Payment (السداد من التصرف والإيصال) */}
-                      <td className="py-2.5 px-2 border-l border-slate-300 num-enlarged font-black text-black bg-teal-50/50">
+                      {/* 6. Disposal Payment */}
+                      <td className="py-2.5 px-2 border-l border-slate-800 num-enlarged text-slate-300">
                         {d.disposalValue?.toLocaleString()}
                       </td>
-                      <td className="py-2.5 px-2 border-l border-slate-300 num-enlarged font-black text-black bg-teal-50/50">
-                        {formatDateDDMMYYYY(d.disposalPaymentDate) || '-'}
+                      <td className="py-2.5 px-2 border-l border-slate-800 num-enlarged text-slate-300">
+                        <span dir="ltr" className="inline-block font-mono">{formatDateDDMMYYYY(d.disposalPaymentDate) || '-'}</span>
                       </td>
-                      <td className="py-2.5 px-2 border-l border-slate-300 num-enlarged font-black text-black bg-teal-50/50">
+                      <td className="py-2.5 px-2 border-l border-slate-800 num-enlarged text-slate-300">
                         {d.disposalReceiptNumber || '-'}
                       </td>
-                      <td className="py-2.5 px-2 border-l border-slate-300 bg-teal-50/50">
-                        <span className="px-2 py-0.5 rounded text-[10px] bg-white text-black font-black border border-slate-400">
+                      <td className="py-2.5 px-2 border-l border-slate-800">
+                        <span className="px-2 py-0.5 rounded text-[10px] bg-slate-800 text-slate-200 font-black border border-slate-700">
                           {d.disposalPaymentMethod}
                         </span>
                       </td>
-                      <td className="py-2.5 px-2 border-l border-slate-300 num-enlarged font-black text-black bg-teal-100/80">
+                      <td className="py-2.5 px-2 border-l border-slate-800 num-enlarged font-black text-teal-400">
                         {d.paidDisposalAmount?.toLocaleString()}
                       </td>
 
                       {/* Net Remaining Debt */}
-                      <td className="py-2.5 px-3 border-l border-slate-300 num-enlarged font-black text-black">
+                      <td className="py-2.5 px-3 border-l border-slate-800 num-enlarged font-black">
                         {d.netRemainingDebt > 0 ? (
                           <div className="space-y-1 flex flex-col items-center justify-center">
-                            <span className="inline-block px-2.5 py-1 bg-red-100 text-black border-2 border-red-600 rounded-lg text-xs font-black shadow-xs">
+                            <span className="inline-block px-2.5 py-1 bg-red-950/90 text-rose-200 border border-red-700/80 rounded-lg text-xs font-black shadow-xs">
                               {d.netRemainingDebt.toLocaleString()} ج.م
                             </span>
 
@@ -1196,10 +1197,10 @@ export const DebtsView: React.FC<DebtsViewProps> = ({
                               if (isOverdue) {
                                 return (
                                   <span
-                                    className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-300 text-black border border-red-600 shadow-xs shrink-0 cursor-help my-0.5"
+                                    className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-gradient-to-r from-rose-700 via-red-600 to-amber-600 text-white border border-amber-300 shadow-md animate-pulse shrink-0 cursor-help my-0.5"
                                     title={`تنبيه متأخرات: مر أكثر من 30 يوماً (${daysElapsed} يوماً) على تاريخ تحرير الغرامة دون سداد كامل!`}
                                   >
-                                    <Clock className="w-3 h-3 text-black" />
+                                    <Clock className="w-3 h-3 text-amber-200" />
                                     <span>متأخرات ({daysElapsed} يوم) 🚨</span>
                                   </span>
                                 );
@@ -1214,7 +1215,7 @@ export const DebtsView: React.FC<DebtsViewProps> = ({
                                   setInstallmentBakeryId(d.bakeryId);
                                   setIsWeeklyInstallmentsOpen(true);
                                 }}
-                                className="block mx-auto text-[10px] bg-amber-400 hover:bg-amber-300 text-black border border-black px-2 py-0.5 rounded-md font-black cursor-pointer shadow-xs transition-transform hover:scale-105 no-print"
+                                className="block mx-auto text-[10px] bg-amber-400 hover:bg-amber-300 text-slate-950 px-2 py-0.5 rounded-md font-black cursor-pointer shadow-xs transition-transform hover:scale-105 no-print"
                                 title="مديونية تتجاوز 20,000 ج.م - انقر لجدولة دفعات أسبوعية"
                               >
                                 &gt; 20 ألف (جدول دفعات أسبوعية)
@@ -1222,17 +1223,17 @@ export const DebtsView: React.FC<DebtsViewProps> = ({
                             )}
                           </div>
                         ) : (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-100 text-black border-2 border-emerald-600 rounded-lg text-[11px] font-black">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-950/80 text-emerald-300 border border-emerald-700/70 rounded-lg text-[11px] font-black">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
                             خالص (0)
                           </span>
                         )}
                       </td>
 
                       {/* Actions Column moved to the END of the table (Left side in RTL) */}
-                      <td className="py-2 px-1.5 border-l border-slate-300 no-print text-center bg-slate-100">
+                      <td className="py-2 px-1.5 border-l border-slate-800 no-print text-center">
                         {isViewer ? (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-black text-black bg-white border border-slate-400 px-2 py-1 rounded-lg">
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-400 bg-slate-900 border border-slate-700 px-2 py-1 rounded-lg">
                             <span>👁️</span>
                             <span>عرض فقط</span>
                           </span>
@@ -1244,10 +1245,10 @@ export const DebtsView: React.FC<DebtsViewProps> = ({
                                 setDebtToEdit(d);
                                 setIsDebtModalOpen(true);
                               }}
-                              className="p-1.5 bg-amber-100 hover:bg-amber-200 text-black border border-amber-500 rounded-lg transition-all duration-200 transform hover:scale-110 active:scale-95 shadow-xs cursor-pointer"
+                              className="p-1.5 hover:bg-amber-950/80 text-amber-400 hover:text-amber-300 border border-transparent hover:border-amber-700/60 rounded-lg transition-all duration-200 transform hover:scale-110 active:scale-95 shadow-xs cursor-pointer"
                               title="تعديل المديونية والإيصال والسداد"
                             >
-                              <Edit2 className="w-3.5 h-3.5 text-black" />
+                              <Edit2 className="w-3.5 h-3.5" />
                             </button>
                             <button
                               onClick={(e) => {
@@ -1256,10 +1257,10 @@ export const DebtsView: React.FC<DebtsViewProps> = ({
                                   onDeleteDebt(d.id);
                                 }
                               }}
-                              className="p-1.5 bg-red-100 hover:bg-red-200 text-black border border-red-500 rounded-lg transition-all duration-200 transform hover:scale-110 active:scale-95 shadow-xs cursor-pointer"
+                              className="p-1.5 hover:bg-red-950/80 text-red-400 hover:text-red-300 border border-transparent hover:border-red-700/60 rounded-lg transition-all duration-200 transform hover:scale-110 active:scale-95 shadow-xs cursor-pointer"
                               title="حذف القيد"
                             >
-                              <Trash2 className="w-3.5 h-3.5 text-red-700" />
+                              <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </div>
                         )}
@@ -1270,59 +1271,59 @@ export const DebtsView: React.FC<DebtsViewProps> = ({
               )}
             </tbody>
 
-            {/* Table Footer Totals in Pure Black (#000000) */}
+            {/* Table Footer Totals */}
             {filteredDebts.length > 0 && (
-              <tfoot className="bg-slate-200 border-t-2 border-black text-black font-black text-xs">
+              <tfoot className="bg-black border-t-2 border-slate-800 text-white font-black text-xs">
                 <tr>
-                  <td colSpan={8} className="py-2.5 px-3 border-l border-slate-400 text-right text-black font-black">
+                  <td colSpan={8} className="py-2.5 px-3 border-l border-slate-800 text-right text-amber-400">
                     إجمالي كشف المديونيات والإيصالات والسداد ({filteredDebts.length} قيد):
                   </td>
-                  <td className="py-2.5 px-2 border-l border-slate-400 num-enlarged text-black font-black">
+                  <td className="py-2.5 px-2 border-l border-slate-800 num-enlarged text-slate-200">
                     {filteredDebts.reduce((s, d) => s + (d.violationAmount || 0), 0).toLocaleString()}
                   </td>
-                  <td className="py-2.5 px-2 border-l border-slate-400 num-enlarged text-black font-black">
+                  <td className="py-2.5 px-2 border-l border-slate-800 num-enlarged text-slate-300">
                     {filteredDebts.reduce((s, d) => s + (d.oldViolations || 0), 0).toLocaleString()}
                   </td>
-                  <td className="py-2.5 px-2 border-l border-slate-400 num-enlarged text-black font-black bg-red-200/80">
+                  <td className="py-2.5 px-2 border-l border-slate-800 num-enlarged text-rose-300 bg-red-950/50">
                     {filteredDebts.reduce((s, d) => s + (d.totalViolations || 0), 0).toLocaleString()}
                   </td>
-                  <td colSpan={3} className="py-2.5 px-2 border-l border-slate-400 text-black font-black">
+                  <td colSpan={3} className="py-2.5 px-2 border-l border-slate-800 text-slate-400">
                     إجمالي سداد المخالفات:
                   </td>
-                  <td className="py-2.5 px-2 border-l border-slate-400 num-enlarged text-black font-black bg-emerald-200/80">
+                  <td className="py-2.5 px-2 border-l border-slate-800 num-enlarged text-emerald-400">
                     {filteredDebts.reduce((s, d) => s + (d.paidViolationAmount || 0), 0).toLocaleString()}
                   </td>
-                  <td className="py-2.5 px-2 border-l border-slate-400 num-enlarged text-black font-black bg-emerald-300/80">
+                  <td className="py-2.5 px-2 border-l border-slate-800 num-enlarged text-emerald-200 bg-emerald-950/50">
                     {filteredDebts.reduce((s, d) => s + (d.remainingViolations || 0), 0).toLocaleString()}
                   </td>
-                  <td className="py-2.5 px-2 border-l border-slate-400 num-enlarged text-black font-black bg-blue-100">
+                  <td className="py-2.5 px-2 border-l border-slate-800 num-enlarged text-blue-300">
                     {filteredDebts.reduce((s, d) => s + (d.addedAmount || 0), 0).toLocaleString()}
                   </td>
-                  <td colSpan={3} className="py-2.5 px-2 border-l border-slate-400 text-black font-black">
+                  <td colSpan={3} className="py-2.5 px-2 border-l border-slate-800 text-slate-400">
                     إجمالي سداد المضاف:
                   </td>
-                  <td className="py-2.5 px-2 border-l border-slate-400 num-enlarged text-black font-black bg-blue-200/80">
+                  <td className="py-2.5 px-2 border-l border-slate-800 num-enlarged text-blue-400">
                     {filteredDebts.reduce((s, d) => s + (d.paidAddedAmount || 0), 0).toLocaleString()}
                   </td>
-                  <td className="py-2.5 px-2 border-l border-slate-400 num-enlarged text-black font-black bg-blue-300/80">
+                  <td className="py-2.5 px-2 border-l border-slate-800 num-enlarged text-blue-200 bg-blue-950/50">
                     {filteredDebts.reduce((s, d) => s + (d.remainingAdded || 0), 0).toLocaleString()}
                   </td>
-                  <td colSpan={4} className="py-2.5 px-2 border-l border-slate-400 text-black font-black">
+                  <td colSpan={4} className="py-2.5 px-2 border-l border-slate-800 text-slate-400">
                     إجمالي قيمة التصرف:
                   </td>
-                  <td className="py-2.5 px-2 border-l border-slate-400 num-enlarged text-black font-black bg-amber-200/80">
+                  <td className="py-2.5 px-2 border-l border-slate-800 num-enlarged text-amber-300 bg-amber-950/50">
                     {filteredDebts.reduce((s, d) => s + (d.disposalValue || 0), 0).toLocaleString()}
                   </td>
-                  <td colSpan={4} className="py-2.5 px-2 border-l border-slate-400 text-black font-black">
+                  <td colSpan={4} className="py-2.5 px-2 border-l border-slate-800 text-slate-400">
                     إجمالي سداد التصرف:
                   </td>
-                  <td className="py-2.5 px-2 border-l border-slate-400 num-enlarged text-black font-black bg-teal-200/80">
+                  <td className="py-2.5 px-2 border-l border-slate-800 num-enlarged text-teal-300">
                     {filteredDebts.reduce((s, d) => s + (d.paidDisposalAmount || 0), 0).toLocaleString()}
                   </td>
-                  <td className="py-2.5 px-3 border-l border-slate-400 num-enlarged text-black font-black bg-red-200">
+                  <td className="py-2.5 px-3 border-l border-slate-800 num-enlarged text-amber-300 bg-red-950">
                     {filteredPeriodNetDebt.toLocaleString()} ج.م
                   </td>
-                  <td className="py-2.5 px-1.5 no-print bg-slate-200" />
+                  <td className="py-2.5 px-1.5 no-print bg-black" />
                 </tr>
               </tfoot>
             )}
@@ -2347,7 +2348,7 @@ const DebtModalForm: React.FC<DebtModalFormProps> = ({
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="overflow-y-auto p-5 space-y-4 flex-1 text-black">
           {/* Net Remaining Summary Banner */}
-          <div className="bg-gradient-to-r from-red-50 via-amber-50 to-red-50 border-2 border-red-400 p-3.5 rounded-xl flex items-center justify-between gap-4 text-black">
+          <div className="bg-gradient-to-r from-red-50 via-amber-50 to-red-50 border-2 border-red-400 p-3.5 rounded-xl flex flex-wrap items-center justify-between gap-4 text-black">
             <div>
               <span className="text-xs font-black text-black block">
                 المعادلة المعتمدة: (المخالفات - المسدد) + (التصرف - المسدد) + (المضاف - المسدد)
@@ -2356,11 +2357,69 @@ const DebtModalForm: React.FC<DebtModalFormProps> = ({
                 متبقي مخالفات: {remainingViolations.toLocaleString()} | متبقي تصرف: {remainingDisposal.toLocaleString()} | متبقي مضاف: {remainingAdded.toLocaleString()}
               </span>
             </div>
-            <div className="text-left">
-              <span className="text-[11px] font-black text-black block">صافي المتبقي على صاحب المخبز</span>
-              <span className="text-xl font-black text-black num-enlarged">
-                {netRemainingDebt.toLocaleString()} ج.م
-              </span>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  const recalc = recalculateDebtRecord({
+                    id: debtToEdit?.id || 'temp',
+                    bakeryId: selectedBakeryId,
+                    bakeryOwnerName: currentBakery?.bakeryOwnerName || '',
+                    machineNumber: currentBakery?.machineNumber || '',
+                    village: currentBakery?.village || '',
+                    localUnit: currentBakery?.localUnit || '',
+                    violationDate,
+                    issuingEntity,
+                    violationType,
+                    violationAmount,
+                    oldViolations,
+                    totalViolations,
+                    violationPaymentDate,
+                    violationReceiptNumber,
+                    violationPaymentMethod,
+                    paidViolationAmount,
+                    remainingViolations,
+                    addedAmount,
+                    addedPaymentDate,
+                    addedReceiptNumber,
+                    addedPaymentMethod,
+                    paidAddedAmount,
+                    remainingAdded,
+                    disposalDate,
+                    disposalBags,
+                    disposalBagPrice,
+                    disposalMultiplier,
+                    disposalValue,
+                    disposalPaymentDate,
+                    disposalReceiptNumber,
+                    disposalPaymentMethod,
+                    paidDisposalAmount,
+                    remainingDisposal,
+                    netRemainingDebt,
+                    notes,
+                  }, currentBakery);
+                  setViolationAmount(recalc.violationAmount);
+                  setOldViolations(recalc.oldViolations);
+                  setPaidViolationAmount(recalc.paidViolationAmount);
+                  setAddedAmount(recalc.addedAmount);
+                  setPaidAddedAmount(recalc.paidAddedAmount);
+                  setDisposalBags(recalc.disposalBags);
+                  setDisposalBagPrice(recalc.disposalBagPrice);
+                  setDisposalMultiplier(recalc.disposalMultiplier);
+                  setPaidDisposalAmount(recalc.paidDisposalAmount);
+                  setFineAppliedNotice(`تمت إعادة احتساب كافة العمليات الحسابية بنجاح! صافي المتبقي = ${recalc.netRemainingDebt.toLocaleString()} ج.م`);
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-black border border-black rounded-lg text-xs font-black shadow-xs cursor-pointer transition"
+              >
+                <RotateCcw className="w-3.5 h-3.5 text-black" />
+                <span>إعادة احتساب 🔄</span>
+              </button>
+              <div className="text-left">
+                <span className="text-[11px] font-black text-black block">صافي المتبقي على صاحب المخبز</span>
+                <span className="text-xl font-black text-black num-enlarged">
+                  {netRemainingDebt.toLocaleString()} ج.م
+                </span>
+              </div>
             </div>
           </div>
 
@@ -2566,19 +2625,12 @@ const DebtModalForm: React.FC<DebtModalFormProps> = ({
 
             <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
               <div>
-                <label className="block text-[11px] font-black text-black mb-1">تاريخ العملية (يوم/شهر/سنة)</label>
-                <input
-                  type="date"
-                  lang="ar-EG"
+                <label className="block text-[11px] font-black text-black mb-1">تاريخ العملية (dd/mm/yyyy)</label>
+                <SmartDateInput
+                  ariaLabel="تاريخ العملية"
                   value={violationDate}
-                  onChange={(e) => setViolationDate(e.target.value)}
-                  className="w-full px-2.5 py-1.5 bg-white border-2 border-slate-400 rounded-lg text-xs font-black text-black"
+                  onChange={(val) => setViolationDate(val)}
                 />
-                {violationDate && (
-                  <span className="block text-[10px] font-black text-black bg-amber-100 border border-amber-400 rounded px-1 mt-1 text-center font-mono">
-                    📅 {formatDateDDMMYYYY(violationDate)}
-                  </span>
-                )}
               </div>
 
               <div>
@@ -2699,19 +2751,12 @@ const DebtModalForm: React.FC<DebtModalFormProps> = ({
             </h4>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
               <div>
-                <label className="block text-[11px] font-black text-black mb-1">تاريخ السداد (يوم/شهر/سنة)</label>
-                <input
-                  type="date"
-                  lang="ar-EG"
+                <label className="block text-[11px] font-black text-black mb-1">تاريخ السداد (dd/mm/yyyy)</label>
+                <SmartDateInput
+                  ariaLabel="تاريخ سداد المخالفة"
                   value={violationPaymentDate}
-                  onChange={(e) => setViolationPaymentDate(e.target.value)}
-                  className="w-full px-2.5 py-1.5 bg-white border-2 border-slate-400 rounded-lg text-xs font-black text-black"
+                  onChange={(val) => setViolationPaymentDate(val)}
                 />
-                {violationPaymentDate && (
-                  <span className="block text-[10px] font-black text-black bg-emerald-100 border border-emerald-400 rounded px-1 mt-1 text-center font-mono">
-                    📅 {formatDateDDMMYYYY(violationPaymentDate)}
-                  </span>
-                )}
               </div>
 
               <div>
@@ -2772,19 +2817,12 @@ const DebtModalForm: React.FC<DebtModalFormProps> = ({
               </div>
 
               <div>
-                <label className="block text-[11px] font-black text-black mb-1">تاريخ السداد (يوم/شهر/سنة)</label>
-                <input
-                  type="date"
-                  lang="ar-EG"
+                <label className="block text-[11px] font-black text-black mb-1">تاريخ السداد (dd/mm/yyyy)</label>
+                <SmartDateInput
+                  ariaLabel="تاريخ سداد المضاف"
                   value={addedPaymentDate}
-                  onChange={(e) => setAddedPaymentDate(e.target.value)}
-                  className="w-full px-2.5 py-1.5 bg-white border-2 border-slate-400 rounded-lg text-xs font-black text-black"
+                  onChange={(val) => setAddedPaymentDate(val)}
                 />
-                {addedPaymentDate && (
-                  <span className="block text-[10px] font-black text-black bg-blue-100 border border-blue-400 rounded px-1 mt-1 text-center font-mono">
-                    📅 {formatDateDDMMYYYY(addedPaymentDate)}
-                  </span>
-                )}
               </div>
 
               <div>
@@ -2835,19 +2873,12 @@ const DebtModalForm: React.FC<DebtModalFormProps> = ({
             </h4>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
               <div>
-                <label className="block text-[11px] font-black text-black mb-1">تاريخ التصرف (يوم/شهر/سنة)</label>
-                <input
-                  type="date"
-                  lang="ar-EG"
+                <label className="block text-[11px] font-black text-black mb-1">تاريخ التصرف (dd/mm/yyyy)</label>
+                <SmartDateInput
+                  ariaLabel="تاريخ التصرف"
                   value={disposalDate}
-                  onChange={(e) => setDisposalDate(e.target.value)}
-                  className="w-full px-2.5 py-1.5 bg-white border-2 border-slate-400 rounded-lg text-xs font-black text-black"
+                  onChange={(val) => setDisposalDate(val)}
                 />
-                {disposalDate && (
-                  <span className="block text-[10px] font-black text-black bg-amber-100 border border-amber-400 rounded px-1 mt-1 text-center font-mono">
-                    📅 {formatDateDDMMYYYY(disposalDate)}
-                  </span>
-                )}
               </div>
 
               <div>
@@ -2888,19 +2919,12 @@ const DebtModalForm: React.FC<DebtModalFormProps> = ({
               </div>
 
               <div>
-                <label className="block text-[11px] font-black text-black mb-1">تاريخ سداد التصرف (يوم/شهر/سنة)</label>
-                <input
-                  type="date"
-                  lang="ar-EG"
+                <label className="block text-[11px] font-black text-black mb-1">تاريخ سداد التصرف (dd/mm/yyyy)</label>
+                <SmartDateInput
+                  ariaLabel="تاريخ سداد التصرف"
                   value={disposalPaymentDate}
-                  onChange={(e) => setDisposalPaymentDate(e.target.value)}
-                  className="w-full px-2.5 py-1.5 bg-white border-2 border-slate-400 rounded-lg text-xs font-black text-black"
+                  onChange={(val) => setDisposalPaymentDate(val)}
                 />
-                {disposalPaymentDate && (
-                  <span className="block text-[10px] font-black text-black bg-amber-100 border border-amber-400 rounded px-1 mt-1 text-center font-mono">
-                    📅 {formatDateDDMMYYYY(disposalPaymentDate)}
-                  </span>
-                )}
               </div>
 
               <div>

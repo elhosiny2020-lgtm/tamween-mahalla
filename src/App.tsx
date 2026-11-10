@@ -42,7 +42,14 @@ import {
   INITIAL_INBOX_MESSAGES,
   DEFAULT_OFFICIAL_LOGO
 } from './defaultData';
-import { formatDateDDMMYYYY, DEFAULT_CALCULATION_CONFIG } from './utils/auditHelper';
+import {
+  formatDateDDMMYYYY,
+  getCurrentDateDDMMYYYY,
+  parseDateToISO,
+  DEFAULT_CALCULATION_CONFIG,
+  recalculateBakeryWithConfig,
+  recalculateDebtRecord
+} from './utils/auditHelper';
 import { getExpirationAlerts } from './components/AlertsModal';
 import { LoginModal } from './components/LoginModal';
 import { HeaderCustomizerModal } from './components/HeaderCustomizerModal';
@@ -163,6 +170,7 @@ const BAKERY_COLUMN_TOOLTIPS: Record<string, string> = {
   bakeryLicenseDate: 'تاريخ انتهاء رخصة المخبز الصادرة من مجلس المدينة/المركز',
   leaseAgreementDate: 'تاريخ انتهاء عقد الإيجار أو الملكية لمقر المخبز',
   taxCardDate: 'تاريخ انتهاء البطاقة الضريبية ومتابعة الموقف الضريبي',
+  lastUpdated: 'تاريخ آخر تحديث أو تعديل تم إجراؤه على بيانات وحصص المخبز (يوم/شهر/سنة)',
 };
 
 const ThHeaderTooltip: React.FC<{ label: string; tooltipKey: string; className?: string }> = ({
@@ -1034,17 +1042,31 @@ export default function App() {
 
   // Handlers for Bakery
   const handleSaveBakery = (bakery: Bakery) => {
-    const existingIndex = appState.bakeries.findIndex((b) => b.id === bakery.id);
+    const calcConfig = appState.systemConfig.calculationConfig || DEFAULT_CALCULATION_CONFIG;
+    const recalculatedBakery: Bakery = {
+      ...recalculateBakeryWithConfig(bakery, calcConfig),
+      lastUpdated: getCurrentDateDDMMYYYY(),
+    };
+
+    const existingIndex = appState.bakeries.findIndex((b) => b.id === recalculatedBakery.id);
     let updated: Bakery[];
     if (existingIndex >= 0) {
       updated = [...appState.bakeries];
-      updated[existingIndex] = bakery;
+      updated[existingIndex] = recalculatedBakery;
     } else {
-      updated = [bakery, ...appState.bakeries];
+      updated = [recalculatedBakery, ...appState.bakeries];
     }
+
+    // Also synchronize any linked debt records with updated bakery owner/machine/village/localUnit & recalculate debts
+    const updatedDebts = appState.debts.map((d) =>
+      d.bakeryId === recalculatedBakery.id ? recalculateDebtRecord(d, recalculatedBakery) : recalculateDebtRecord(d)
+    );
+
     triggerSave(
-      { ...appState, bakeries: updated },
-      existingIndex >= 0 ? `تم حفظ وتعديل بيانات مخبز (${bakery.bakeryOwnerName}) بنجاح` : `تم إضافة وحفظ بيانات مخبز (${bakery.bakeryOwnerName}) بنجاح`
+      { ...appState, bakeries: updated, debts: updatedDebts },
+      existingIndex >= 0
+        ? `تم حفظ وتعديل بيانات مخبز (${recalculatedBakery.bakeryOwnerName}) وإعادة احتساب كافة الجداول وتحديث تاريخ آخر تحديث (${recalculatedBakery.lastUpdated}) بنجاح`
+        : `تم إضافة وحفظ بيانات مخبز (${recalculatedBakery.bakeryOwnerName}) واحتساب كافة المعادلات بنجاح`
     );
   };
 
@@ -1061,29 +1083,40 @@ export default function App() {
 
   // Handlers for Debts
   const handleSaveDebt = (debt: DebtRecord) => {
-    const existingIndex = appState.debts.findIndex((d) => d.id === debt.id);
+    const linkedBakery = appState.bakeries.find((b) => b.id === debt.bakeryId);
+    const recalculatedDebt = recalculateDebtRecord(debt, linkedBakery);
+
+    const existingIndex = appState.debts.findIndex((d) => d.id === recalculatedDebt.id);
     let updated: DebtRecord[];
     if (existingIndex >= 0) {
       updated = [...appState.debts];
-      updated[existingIndex] = debt;
+      updated[existingIndex] = recalculatedDebt;
     } else {
-      updated = [debt, ...appState.debts];
+      updated = [recalculatedDebt, ...appState.debts];
     }
 
-    if (debt.netRemainingDebt >= 50000) {
+    // Update lastUpdated on the linked bakery as well so changes reflect across all tables
+    const todayFormatted = getCurrentDateDDMMYYYY();
+    const updatedBakeries = appState.bakeries.map((b) =>
+      b.id === recalculatedDebt.bakeryId ? { ...b, lastUpdated: todayFormatted } : b
+    );
+
+    if (recalculatedDebt.netRemainingDebt >= 50000) {
       addHighDebtNotification(
-        debt.bakeryId,
-        debt.bakeryOwnerName,
-        debt.machineNumber,
-        debt.village,
-        debt.netRemainingDebt,
+        recalculatedDebt.bakeryId,
+        recalculatedDebt.bakeryOwnerName,
+        recalculatedDebt.machineNumber,
+        recalculatedDebt.village,
+        recalculatedDebt.netRemainingDebt,
         existingIndex >= 0 ? 'EDIT_DEBT' : 'ADD_DEBT'
       );
     }
 
     triggerSave(
-      { ...appState, debts: updated },
-      existingIndex >= 0 ? 'تم تعديل وحفظ قيد المديونية بنجاح' : 'تم إضافة وتسجيل قيد المديونية بنجاح'
+      { ...appState, debts: updated, bakeries: updatedBakeries },
+      existingIndex >= 0
+        ? 'تم تعديل وحفظ قيد المديونية وإعادة احتساب كافة الأرصدة بنجاح'
+        : 'تم إضافة وتسجيل قيد المديونية وإعادة احتساب الأرصدة بنجاح'
     );
   };
 
@@ -1094,6 +1127,29 @@ export default function App() {
     }
     const updated = appState.debts.filter((d) => d.id !== debtId);
     triggerSave({ ...appState, debts: updated }, 'تم حذف قيد المديونية وتحديث قاعدة البيانات بنجاح');
+  };
+
+  // Global Recalculate All Button Handler (for both Bakeries Database and Debts View)
+  const handleRecalculateAllSystem = () => {
+    const calcConfig = appState.systemConfig.calculationConfig || DEFAULT_CALCULATION_CONFIG;
+    const todayFormatted = getCurrentDateDDMMYYYY();
+
+    const recalculatedBakeries = appState.bakeries.map((b) => ({
+      ...recalculateBakeryWithConfig(b, calcConfig),
+      lastUpdated: b.lastUpdated ? formatDateDDMMYYYY(b.lastUpdated) : todayFormatted,
+    }));
+
+    const bakeryMap = new Map<string, Bakery>();
+    recalculatedBakeries.forEach((b) => bakeryMap.set(b.id, b));
+
+    const recalculatedDebts = appState.debts.map((d) =>
+      recalculateDebtRecord(d, bakeryMap.get(d.bakeryId))
+    );
+
+    triggerSave(
+      { ...appState, bakeries: recalculatedBakeries, debts: recalculatedDebts },
+      `تم إعادة احتساب جميع العمليات الحسابية والحصص والأرغفة والمديونيات لعدد (${recalculatedBakeries.length}) مخبز و(${recalculatedDebts.length}) قيد مديونية وتسميعها في جميع الجداول بنجاح ✅`
+    );
   };
 
   // Quick 1-click partition save
@@ -1156,6 +1212,7 @@ export default function App() {
       ct.bakeryLicenseDate,
       ct.leaseAgreementDate,
       ct.taxCardDate,
+      ct.lastUpdated || 'تاريخ آخر تحديث',
     ];
 
     const rows = filteredBakeries.map((b, idx) => [
@@ -1187,10 +1244,11 @@ export default function App() {
       `"${b.fuelType}"`,
       `"${b.phone}"`,
       `"${b.nationalId}"`,
-      `"${b.commercialRegDate}"`,
-      `"${b.bakeryLicenseDate}"`,
-      `"${b.leaseAgreementDate}"`,
-      `"${b.taxCardDate}"`,
+      `"${formatDateDDMMYYYY(b.commercialRegDate)}"`,
+      `"${formatDateDDMMYYYY(b.bakeryLicenseDate)}"`,
+      `"${formatDateDDMMYYYY(b.leaseAgreementDate)}"`,
+      `"${formatDateDDMMYYYY(b.taxCardDate)}"`,
+      `"${formatDateDDMMYYYY(b.lastUpdated) || getCurrentDateDDMMYYYY()}"`,
     ]);
 
     const csvContent = '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
@@ -1957,6 +2015,7 @@ export default function App() {
               setReportModalInitialTab(tab || 'debts');
               setIsReportModalOpen(true);
             }}
+            onRecalculateAll={handleRecalculateAllSystem}
           />
         ) : (
           /* BAKERIES MAIN VIEW */
@@ -2117,7 +2176,18 @@ export default function App() {
                     <span>كشف الطباعة A4</span>
                   </button>
 
-                  {/* 6. Calculation Formulas Studio Button */}
+                  {/* 6. Recalculate All Operations Button (مفتاح إعادة احتساب العمليات الحسابية) */}
+                  <button
+                    type="button"
+                    onClick={handleRecalculateAllSystem}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-emerald-500 via-teal-600 to-cyan-600 hover:from-emerald-400 hover:to-cyan-500 text-slate-950 rounded-xl text-xs font-black shadow-lg shadow-emerald-950/50 border border-emerald-300 transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer"
+                    title="إعادة احتساب كافة العمليات الحسابية والحصص والأرغفة ومتوسطات الفرد والمديونيات وتسميعها في جميع الجداول فوراً"
+                  >
+                    <RefreshCw className="w-4 h-4 text-slate-950" />
+                    <span>إعادة احتساب العمليات الحسابية 🔄</span>
+                  </button>
+
+                  {/* 7. Calculation Formulas Studio Button */}
                   <button
                     type="button"
                     onClick={() => setIsCalculationModalOpen(true)}
@@ -2739,10 +2809,10 @@ export default function App() {
 
                       {/* 7. Licenses & Dates */}
                       <th
-                        colSpan={4}
+                        colSpan={5}
                         className="py-2.5 px-2 bg-slate-950 border-l border-slate-800 text-amber-300"
                       >
-                        التراخيص والعقود وتواريخ السريان
+                        التراخيص والعقود وتواريخ السريان وآخر تحديث
                       </th>
 
                       {/* Actions Column Header moved to the END of the table (Left side in RTL) */}
@@ -2857,6 +2927,9 @@ export default function App() {
                       <th className="py-2 px-2 border-l border-slate-800 min-w-[85px]">
                         <ThHeaderTooltip label={ct.taxCardDate} tooltipKey="taxCardDate" />
                       </th>
+                      <th className="py-2 px-2 border-l border-slate-800 min-w-[95px] bg-emerald-950/50 text-emerald-300">
+                        <ThHeaderTooltip label={ct.lastUpdated || 'تاريخ آخر تحديث'} tooltipKey="lastUpdated" />
+                      </th>
                     </tr>
                   </thead>
 
@@ -2864,7 +2937,7 @@ export default function App() {
                   <tbody className="divide-y divide-slate-800 font-bold">
                     {filteredBakeries.length === 0 ? (
                       <tr>
-                        <td colSpan={33} className="py-12 text-center text-slate-400 font-black">
+                        <td colSpan={34} className="py-12 text-center text-slate-400 font-black">
                           لا توجد أي مخابز مطابقة لمعايير البحث الحالية
                         </td>
                       </tr>
@@ -2877,7 +2950,8 @@ export default function App() {
                         const today = new Date();
                         const checkExpiry = (dStr?: string) => {
                           if (!dStr) return false;
-                          const d = new Date(dStr);
+                          const isoStr = parseDateToISO(dStr) || dStr;
+                          const d = new Date(isoStr);
                           if (isNaN(d.getTime())) return false;
                           const diff = (d.getTime() - today.getTime()) / (1000 * 3600 * 24);
                           return diff <= 15;
@@ -3060,34 +3134,45 @@ export default function App() {
                               {b.nationalId}
                             </td>
 
-                            {/* 7. Licenses & Dates */}
+                            {/* 7. Licenses & Dates (dd/mm/yyyy with Day on Left, Month in Middle, Year on Right) */}
                             <td
-                              className={`py-2.5 px-2 border-l border-slate-800 num-enlarged ${
+                              dir="ltr"
+                              className={`py-2.5 px-2 border-l border-slate-800 num-enlarged font-mono ${
                                 hasCommWarning ? 'bg-red-950/80 text-red-300 font-black border border-red-700' : 'text-slate-300'
                               }`}
                             >
                               {formatDateDDMMYYYY(b.commercialRegDate) || '-'}
                             </td>
                             <td
-                              className={`py-2.5 px-2 border-l border-slate-800 num-enlarged ${
+                              dir="ltr"
+                              className={`py-2.5 px-2 border-l border-slate-800 num-enlarged font-mono ${
                                 hasLicenseWarning ? 'bg-red-950/80 text-red-300 font-black border border-red-700' : 'text-slate-300'
                               }`}
                             >
                               {formatDateDDMMYYYY(b.bakeryLicenseDate) || '-'}
                             </td>
                             <td
-                              className={`py-2.5 px-2 border-l border-slate-800 num-enlarged ${
+                              dir="ltr"
+                              className={`py-2.5 px-2 border-l border-slate-800 num-enlarged font-mono ${
                                 hasLeaseWarning ? 'bg-red-950/80 text-red-300 font-black border border-red-700' : 'text-slate-300'
                               }`}
                             >
                               {formatDateDDMMYYYY(b.leaseAgreementDate) || '-'}
                             </td>
                             <td
-                              className={`py-2.5 px-2 border-l border-slate-800 num-enlarged ${
+                              dir="ltr"
+                              className={`py-2.5 px-2 border-l border-slate-800 num-enlarged font-mono ${
                                 hasTaxWarning ? 'bg-red-950/80 text-red-300 font-black border border-red-700' : 'text-slate-300'
                               }`}
                             >
                               {formatDateDDMMYYYY(b.taxCardDate) || '-'}
+                            </td>
+                            <td
+                              dir="ltr"
+                              className="py-2.5 px-2 border-l border-slate-800 num-enlarged font-mono font-black text-emerald-300 bg-emerald-950/25"
+                              title="تاريخ آخر تحديث لبيانات هذا المخبز (يوم/شهر/سنة)"
+                            >
+                              {formatDateDDMMYYYY(b.lastUpdated) || getCurrentDateDDMMYYYY()}
                             </td>
 
                             {/* Actions Column moved to the END of the table (Left side in RTL) */}

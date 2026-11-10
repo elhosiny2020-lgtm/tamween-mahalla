@@ -293,5 +293,45 @@ test('New Ration Calculation Formulas: insuranceQuota, loavesCount (Maw/Magr), a
   assert.equal(updated.perCapitaAverage, '0.10');
 });
 
+import {
+  formatDateDDMMYYYY,
+  getCurrentDateDDMMYYYY,
+  parseDateToISO,
+  recalculateDebtRecord,
+} from './auditHelper';
 
+test('formatDateDDMMYYYY, getCurrentDateDDMMYYYY, and parseDateToISO handle dd/mm/yyyy accurately', () => {
+  assert.equal(formatDateDDMMYYYY('2026-11-05'), '05/11/2026');
+  assert.equal(formatDateDDMMYYYY('5/9/2026'), '05/09/2026');
+  assert.equal(formatDateDDMMYYYY('15/10/2026'), '15/10/2026');
 
+  assert.equal(parseDateToISO('05/11/2026'), '2026-11-05');
+  assert.equal(parseDateToISO('2026-11-05'), '2026-11-05');
+
+  const today = getCurrentDateDDMMYYYY();
+  assert.match(today, /^\d{2}\/\d{2}\/\d{4}$/);
+  assert.equal(DEFAULT_COLUMN_TITLES.lastUpdated, 'تاريخ آخر تحديث');
+});
+
+test('recalculateDebtRecord recalculates all violation, added, disposal, and netRemainingDebt fields and syncs bakery info', () => {
+  const sampleDebt = {
+    ...INITIAL_DEBTS[0],
+    violationAmount: 2500,
+    oldViolations: 1000,
+    paidViolationAmount: 1500,
+    addedAmount: 3000,
+    paidAddedAmount: 1000,
+    disposalBags: 2,
+    disposalBagPrice: 950,
+    disposalMultiplier: 1,
+    paidDisposalAmount: 900,
+  };
+  const rec = recalculateDebtRecord(sampleDebt, INITIAL_BAKERIES[0]);
+  assert.equal(rec.totalViolations, 3500);
+  assert.equal(rec.remainingViolations, 2000);
+  assert.equal(rec.remainingAdded, 2000);
+  assert.equal(rec.disposalValue, 1900);
+  assert.equal(rec.remainingDisposal, 1000);
+  assert.equal(rec.netRemainingDebt, 5000);
+  assert.equal(rec.bakeryOwnerName, INITIAL_BAKERIES[0].bakeryOwnerName);
+});

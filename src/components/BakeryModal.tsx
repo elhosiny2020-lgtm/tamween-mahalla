@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { Bakery, VillageHierarchy, AppUser, BakeryActivityLogItem, CalculationConfig } from '../types';
 import {
   formatDateDDMMYYYY,
+  getCurrentDateDDMMYYYY,
   DEFAULT_CALCULATION_CONFIG,
   calculateInsuranceQuotaFromValue,
   getBreadTypeLoavesRate,
   calculateLoavesByBreadTypeAndBeneficiaries,
   calculatePerCapitaFromLoavesAndActualQuota,
 } from '../utils/auditHelper';
+import { SmartDateInput } from './SmartDateInput';
 import {
   X,
   Calculator,
@@ -537,6 +539,7 @@ export const BakeryModal: React.FC<BakeryModalProps> = ({
       bakeryLicenseDate,
       leaseAgreementDate,
       notes: notes.trim(),
+      lastUpdated: getCurrentDateDDMMYYYY(),
       activityLog: updatedLogs,
     };
 
@@ -1392,6 +1395,10 @@ export const BakeryModal: React.FC<BakeryModalProps> = ({
                   onChange={(e) => {
                     const q = parseFloat(e.target.value) || 0;
                     setInsuranceQuota(q);
+                    if (q > 0 && flourBagPrice > 0) {
+                      const syncedVal = Math.round(q * flourBagPrice * (calculationConfig.insuranceDivisor || 3));
+                      setInsuranceValue(syncedVal);
+                    }
                     calculateAllAverages({ insQuota: q });
                     if (q > 0) setErrors((prev) => ({ ...prev, insuranceQuota: '' }));
                   }}
@@ -1607,32 +1614,30 @@ export const BakeryModal: React.FC<BakeryModalProps> = ({
 
           {/* Section 6: Licenses, Contracts, Expiration Dates */}
           <div className="border border-slate-200 rounded-xl p-4 bg-slate-50/50">
-            <h4 className="text-xs font-black text-slate-800 pb-2 mb-3 border-b border-slate-200 flex items-center gap-1.5">
-              <Calendar className="w-4 h-4 text-amber-600" />
-              6. التراخيص والعقود وتواريخ السريان (تنسيق التواريخ يوم / شهر / سنة DD/MM/YYYY)
-            </h4>
+            <div className="flex flex-wrap items-center justify-between gap-2 pb-2 mb-3 border-b border-slate-200">
+              <h4 className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                <Calendar className="w-4 h-4 text-amber-600" />
+                <span>6. التراخيص والعقود وتواريخ السريان (التنسيق المعتمد: يوم عالشمال / شهر بالوسط / سنة عاليمين dd/mm/yyyy)</span>
+              </h4>
+              <span dir="ltr" className="text-[11px] font-mono font-black bg-amber-100 text-amber-950 border border-amber-400 px-2.5 py-0.5 rounded-full">
+                🕒 تاريخ آخر تحديث: {bakeryToEdit?.lastUpdated ? formatDateDDMMYYYY(bakeryToEdit.lastUpdated) : getCurrentDateDDMMYYYY()}
+              </span>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3.5">
               <div>
                 <label className="block text-xs font-black text-slate-700 mb-1">
-                  تاريخ السجل التجاري (يوم/شهر/سنة) *
+                  تاريخ السجل التجاري (dd/mm/yyyy) *
                 </label>
-                <input
-                  type="date"
-                  lang="ar-EG"
+                <SmartDateInput
+                  ariaLabel="تاريخ السجل التجاري"
                   value={commercialRegDate}
-                  onChange={(e) => {
-                    setCommercialRegDate(e.target.value);
-                    if (e.target.value) setErrors((prev) => ({ ...prev, commercialRegDate: '' }));
+                  onChange={(val) => {
+                    setCommercialRegDate(val);
+                    if (val) setErrors((prev) => ({ ...prev, commercialRegDate: '' }));
                   }}
-                  className={`w-full px-3 py-2 bg-white border rounded-lg text-xs font-black text-slate-900 focus:ring-2 focus:ring-amber-500 num-enlarged ${
-                    errors.commercialRegDate ? 'border-red-500 bg-red-50/50' : 'border-slate-300'
-                  }`}
+                  hasError={Boolean(errors.commercialRegDate)}
+                  disabled={isReadOnly}
                 />
-                {commercialRegDate && (
-                  <span className="block text-[10px] font-black text-amber-900 bg-amber-100/70 border border-amber-300 rounded px-1.5 py-0.5 mt-1 text-center font-mono">
-                    📅 التاريخ المحدد: {formatDateDDMMYYYY(commercialRegDate)}
-                  </span>
-                )}
                 {errors.commercialRegDate && (
                   <p className="text-[11px] text-red-600 font-black mt-1 flex items-center gap-1">
                     <AlertCircle className="w-3.5 h-3.5" />
@@ -1643,25 +1648,18 @@ export const BakeryModal: React.FC<BakeryModalProps> = ({
 
               <div>
                 <label className="block text-xs font-black text-slate-700 mb-1">
-                  تاريخ رخصة المخبز (يوم/شهر/سنة) *
+                  تاريخ رخصة المخبز (dd/mm/yyyy) *
                 </label>
-                <input
-                  type="date"
-                  lang="ar-EG"
+                <SmartDateInput
+                  ariaLabel="تاريخ رخصة المخبز"
                   value={bakeryLicenseDate}
-                  onChange={(e) => {
-                    setBakeryLicenseDate(e.target.value);
-                    if (e.target.value) setErrors((prev) => ({ ...prev, bakeryLicenseDate: '' }));
+                  onChange={(val) => {
+                    setBakeryLicenseDate(val);
+                    if (val) setErrors((prev) => ({ ...prev, bakeryLicenseDate: '' }));
                   }}
-                  className={`w-full px-3 py-2 bg-white border rounded-lg text-xs font-black text-slate-900 focus:ring-2 focus:ring-amber-500 num-enlarged ${
-                    errors.bakeryLicenseDate ? 'border-red-500 bg-red-50/50' : 'border-slate-300'
-                  }`}
+                  hasError={Boolean(errors.bakeryLicenseDate)}
+                  disabled={isReadOnly}
                 />
-                {bakeryLicenseDate && (
-                  <span className="block text-[10px] font-black text-amber-900 bg-amber-100/70 border border-amber-300 rounded px-1.5 py-0.5 mt-1 text-center font-mono">
-                    📅 التاريخ المحدد: {formatDateDDMMYYYY(bakeryLicenseDate)}
-                  </span>
-                )}
                 {errors.bakeryLicenseDate && (
                   <p className="text-[11px] text-red-600 font-black mt-1 flex items-center gap-1">
                     <AlertCircle className="w-3.5 h-3.5" />
@@ -1672,25 +1670,18 @@ export const BakeryModal: React.FC<BakeryModalProps> = ({
 
               <div>
                 <label className="block text-xs font-black text-slate-700 mb-1">
-                  تاريخ عقد الإيجار (يوم/شهر/سنة) *
+                  تاريخ عقد الإيجار (dd/mm/yyyy) *
                 </label>
-                <input
-                  type="date"
-                  lang="ar-EG"
+                <SmartDateInput
+                  ariaLabel="تاريخ عقد الإيجار"
                   value={leaseAgreementDate}
-                  onChange={(e) => {
-                    setLeaseAgreementDate(e.target.value);
-                    if (e.target.value) setErrors((prev) => ({ ...prev, leaseAgreementDate: '' }));
+                  onChange={(val) => {
+                    setLeaseAgreementDate(val);
+                    if (val) setErrors((prev) => ({ ...prev, leaseAgreementDate: '' }));
                   }}
-                  className={`w-full px-3 py-2 bg-white border rounded-lg text-xs font-black text-slate-900 focus:ring-2 focus:ring-amber-500 num-enlarged ${
-                    errors.leaseAgreementDate ? 'border-red-500 bg-red-50/50' : 'border-slate-300'
-                  }`}
+                  hasError={Boolean(errors.leaseAgreementDate)}
+                  disabled={isReadOnly}
                 />
-                {leaseAgreementDate && (
-                  <span className="block text-[10px] font-black text-amber-900 bg-amber-100/70 border border-amber-300 rounded px-1.5 py-0.5 mt-1 text-center font-mono">
-                    📅 التاريخ المحدد: {formatDateDDMMYYYY(leaseAgreementDate)}
-                  </span>
-                )}
                 {errors.leaseAgreementDate && (
                   <p className="text-[11px] text-red-600 font-black mt-1 flex items-center gap-1">
                     <AlertCircle className="w-3.5 h-3.5" />
@@ -1701,25 +1692,18 @@ export const BakeryModal: React.FC<BakeryModalProps> = ({
 
               <div>
                 <label className="block text-xs font-black text-slate-700 mb-1">
-                  تاريخ البطاقة الضريبية (يوم/شهر/سنة) *
+                  تاريخ البطاقة الضريبية (dd/mm/yyyy) *
                 </label>
-                <input
-                  type="date"
-                  lang="ar-EG"
+                <SmartDateInput
+                  ariaLabel="تاريخ البطاقة الضريبية"
                   value={taxCardDate}
-                  onChange={(e) => {
-                    setTaxCardDate(e.target.value);
-                    if (e.target.value) setErrors((prev) => ({ ...prev, taxCardDate: '' }));
+                  onChange={(val) => {
+                    setTaxCardDate(val);
+                    if (val) setErrors((prev) => ({ ...prev, taxCardDate: '' }));
                   }}
-                  className={`w-full px-3 py-2 bg-white border rounded-lg text-xs font-black text-slate-900 focus:ring-2 focus:ring-amber-500 num-enlarged ${
-                    errors.taxCardDate ? 'border-red-500 bg-red-50/50' : 'border-slate-300'
-                  }`}
+                  hasError={Boolean(errors.taxCardDate)}
+                  disabled={isReadOnly}
                 />
-                {taxCardDate && (
-                  <span className="block text-[10px] font-black text-amber-900 bg-amber-100/70 border border-amber-300 rounded px-1.5 py-0.5 mt-1 text-center font-mono">
-                    📅 التاريخ المحدد: {formatDateDDMMYYYY(taxCardDate)}
-                  </span>
-                )}
                 {errors.taxCardDate && (
                   <p className="text-[11px] text-red-600 font-black mt-1 flex items-center gap-1">
                     <AlertCircle className="w-3.5 h-3.5" />

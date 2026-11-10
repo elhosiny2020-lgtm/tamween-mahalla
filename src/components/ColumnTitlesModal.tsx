@@ -88,6 +88,7 @@ export const ColumnTitlesModal: React.FC<ColumnTitlesModalProps> = ({
     { key: 'bakeryLicenseDate', label: 'رخصة المخبز', group: 'التراخيص والعقود' },
     { key: 'leaseAgreementDate', label: 'عقد الإيجار', group: 'التراخيص والعقود' },
     { key: 'taxCardDate', label: 'البطاقة الضريبية', group: 'التراخيص والعقود' },
+    { key: 'lastUpdated', label: 'تاريخ آخر تحديث', group: 'التراخيص والعقود' },
     { key: 'actions', label: 'العمليات والإجراءات', group: 'العمليات والإجراءات' },
   ];
 

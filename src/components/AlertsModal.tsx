@@ -10,6 +10,7 @@ import {
   DollarSign,
   Calendar
 } from 'lucide-react';
+import { formatDateDDMMYYYY, parseDateToISO } from '../utils/auditHelper';
 
 interface AlertsModalProps {
   isOpen: boolean;
@@ -32,7 +33,8 @@ export function getExpirationAlerts(bakeries: Bakery[]): ExpirationAlertItem[] {
     dateStr?: string
   ) => {
     if (!dateStr) return;
-    const docDate = new Date(dateStr);
+    const isoStr = parseDateToISO(dateStr) || dateStr;
+    const docDate = new Date(isoStr);
     if (isNaN(docDate.getTime())) return;
     docDate.setHours(0, 0, 0, 0);
 
@@ -268,7 +270,10 @@ export const AlertsModal: React.FC<AlertsModalProps> = ({
                             الوثيقة: <strong className="text-amber-900">{item.docType}</strong>
                           </span>
                           <span className="text-slate-500 font-bold">
-                            تاريخ السريان: {item.docDate}
+                            تاريخ السريان:{' '}
+                            <span dir="ltr" className="inline-block font-mono font-black text-slate-900">
+                              {formatDateDDMMYYYY(item.docDate)}
+                            </span>
                           </span>
                           <span
                             className={`font-black px-2 py-0.5 rounded text-[11px] ${

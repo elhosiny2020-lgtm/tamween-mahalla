@@ -150,6 +150,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
     bakeryLicenseDate: true,
     leaseAgreementDate: true,
     taxCardDate: true,
+    lastUpdated: true,
   });
 
   // Calculate bakery debt mapping
@@ -737,6 +738,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
     if (activeColumns.bakeryLicenseDate) headers.push(columnTitles.bakeryLicenseDate);
     if (activeColumns.leaseAgreementDate) headers.push(columnTitles.leaseAgreementDate);
     if (activeColumns.taxCardDate) headers.push(columnTitles.taxCardDate);
+    if (activeColumns.lastUpdated) headers.push(columnTitles.lastUpdated || 'تاريخ آخر تحديث');
 
     const rows = filteredBakeries.map((b, idx) => {
       const row: (string | number)[] = [];
@@ -773,10 +775,11 @@ export const ReportModal: React.FC<ReportModalProps> = ({
       // الاتصال والتراخيص
       if (activeColumns.phone) row.push(`"\t${b.phone || ''}"`);
       if (activeColumns.nationalId) row.push(`"\t${b.nationalId || ''}"`);
-      if (activeColumns.commercialRegDate) row.push(`"${b.commercialRegDate || ''}"`);
-      if (activeColumns.bakeryLicenseDate) row.push(`"${b.bakeryLicenseDate || ''}"`);
-      if (activeColumns.leaseAgreementDate) row.push(`"${b.leaseAgreementDate || ''}"`);
-      if (activeColumns.taxCardDate) row.push(`"${b.taxCardDate || ''}"`);
+      if (activeColumns.commercialRegDate) row.push(`"${formatDateDDMMYYYY(b.commercialRegDate) || ''}"`);
+      if (activeColumns.bakeryLicenseDate) row.push(`"${formatDateDDMMYYYY(b.bakeryLicenseDate) || ''}"`);
+      if (activeColumns.leaseAgreementDate) row.push(`"${formatDateDDMMYYYY(b.leaseAgreementDate) || ''}"`);
+      if (activeColumns.taxCardDate) row.push(`"${formatDateDDMMYYYY(b.taxCardDate) || ''}"`);
+      if (activeColumns.lastUpdated) row.push(`"${formatDateDDMMYYYY(b.lastUpdated) || ''}"`);
       return row.join(',');
     });
 
@@ -834,7 +837,8 @@ export const ReportModal: React.FC<ReportModalProps> = ({
     (activeColumns.commercialRegDate ? 1 : 0) +
     (activeColumns.bakeryLicenseDate ? 1 : 0) +
     (activeColumns.leaseAgreementDate ? 1 : 0) +
-    (activeColumns.taxCardDate ? 1 : 0);
+    (activeColumns.taxCardDate ? 1 : 0) +
+    (activeColumns.lastUpdated ? 1 : 0);
 
   return (
     <div
@@ -1609,7 +1613,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                             <td className="border border-black py-1 px-0.5 num-enlarged font-black text-black">{d.machineNumber}</td>
                             {activeColumns.village && <td className="border border-black py-1 px-0.5 text-black font-black">{d.village}</td>}
                             {activeColumns.localUnit && <td className="border border-black py-1 px-0.5 text-black font-black">{d.localUnit}</td>}
-                            <td className="border border-black py-1 px-0.5 font-mono text-black font-black">{formatDateDDMMYYYY(d.violationDate)}</td>
+                            <td dir="ltr" className="border border-black py-1 px-0.5 font-mono text-black font-black">{formatDateDDMMYYYY(d.violationDate)}</td>
                             <td className="border border-black py-1 px-0.5 text-black font-black">{d.issuingEntity}</td>
                             <td className="border border-black py-1 px-0.5 text-black font-black">{d.violationType}</td>
                             <td className="border border-black py-1 px-0.5 num-enlarged text-black font-black">{d.totalViolations?.toLocaleString()}</td>
@@ -1618,7 +1622,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                                 {d.violationReceiptNumber ? `إيصال: ${d.violationReceiptNumber}` : '-'}
                               </span>
                               {d.violationPaymentDate && (
-                                <span className="block font-mono text-[6.5pt] text-black font-black">
+                                <span dir="ltr" className="block font-mono text-[6.5pt] text-black font-black">
                                   {formatDateDDMMYYYY(d.violationPaymentDate)}
                                 </span>
                               )}
@@ -1636,7 +1640,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                                 {d.addedReceiptNumber ? `إيصال: ${d.addedReceiptNumber}` : '-'}
                               </span>
                               {d.addedPaymentDate && (
-                                <span className="block font-mono text-[6.5pt] text-black font-black">
+                                <span dir="ltr" className="block font-mono text-[6.5pt] text-black font-black">
                                   {formatDateDDMMYYYY(d.addedPaymentDate)}
                                 </span>
                               )}
@@ -1654,7 +1658,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                                 {d.disposalReceiptNumber ? `إيصال: ${d.disposalReceiptNumber}` : '-'}
                               </span>
                               {d.disposalPaymentDate && (
-                                <span className="block font-mono text-[6.5pt] text-black font-black">
+                                <span dir="ltr" className="block font-mono text-[6.5pt] text-black font-black">
                                   {formatDateDDMMYYYY(d.disposalPaymentDate)}
                                 </span>
                               )}
@@ -2128,6 +2132,9 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                         {activeColumns.taxCardDate && (
                           <th className="border border-black py-1 px-0.5 text-black">{columnTitles.taxCardDate}</th>
                         )}
+                        {activeColumns.lastUpdated && (
+                          <th className="border border-black py-1 px-0.5 text-black">{columnTitles.lastUpdated || 'تاريخ آخر تحديث'}</th>
+                        )}
                       </tr>
                     </thead>
 
@@ -2238,16 +2245,19 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                               <td className="border border-black py-1.5 px-1 num-enlarged cell-nowrap font-mono text-black font-black">{b.nationalId}</td>
                             )}
                             {activeColumns.commercialRegDate && (
-                              <td className="border border-black py-1.5 px-1 num-enlarged cell-nowrap font-mono text-black font-black">{formatDateDDMMYYYY(b.commercialRegDate)}</td>
+                              <td dir="ltr" className="border border-black py-1.5 px-1 num-enlarged cell-nowrap font-mono text-black font-black">{formatDateDDMMYYYY(b.commercialRegDate)}</td>
                             )}
                             {activeColumns.bakeryLicenseDate && (
-                              <td className="border border-black py-1.5 px-1 num-enlarged cell-nowrap font-mono text-black font-black">{formatDateDDMMYYYY(b.bakeryLicenseDate)}</td>
+                              <td dir="ltr" className="border border-black py-1.5 px-1 num-enlarged cell-nowrap font-mono text-black font-black">{formatDateDDMMYYYY(b.bakeryLicenseDate)}</td>
                             )}
                             {activeColumns.leaseAgreementDate && (
-                              <td className="border border-black py-1.5 px-1 num-enlarged cell-nowrap font-mono text-black font-black">{formatDateDDMMYYYY(b.leaseAgreementDate)}</td>
+                              <td dir="ltr" className="border border-black py-1.5 px-1 num-enlarged cell-nowrap font-mono text-black font-black">{formatDateDDMMYYYY(b.leaseAgreementDate)}</td>
                             )}
                             {activeColumns.taxCardDate && (
-                              <td className="border border-black py-1.5 px-1 num-enlarged cell-nowrap font-mono text-black font-black">{formatDateDDMMYYYY(b.taxCardDate)}</td>
+                              <td dir="ltr" className="border border-black py-1.5 px-1 num-enlarged cell-nowrap font-mono text-black font-black">{formatDateDDMMYYYY(b.taxCardDate)}</td>
+                            )}
+                            {activeColumns.lastUpdated && (
+                              <td dir="ltr" className="border border-black py-1.5 px-1 num-enlarged cell-nowrap font-mono text-black font-black">{formatDateDDMMYYYY(b.lastUpdated) || '-'}</td>
                             )}
                           </tr>
                         );
