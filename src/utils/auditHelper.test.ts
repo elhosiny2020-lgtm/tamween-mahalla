@@ -234,4 +234,64 @@ test('filterDebtsByAdvancedCriteria filters debts accurately by date range (من
   assert.equal(emptyRange.length, 0);
 });
 
+import {
+  DEFAULT_CALCULATION_CONFIG,
+  calculateInsuranceQuotaFromValue,
+  calculateLoavesByBreadTypeAndBeneficiaries,
+  calculatePerCapitaFromLoavesAndActualQuota,
+  recalculateBakeryWithConfig,
+} from './auditHelper';
+
+test('New Ration Calculation Formulas: insuranceQuota, loavesCount (Maw/Magr), and perCapitaAverage', () => {
+  // 1. الحصة التأمينية = المبلغ التأميني / سعر الشيكارة / 3
+  // Example: 57000 / 950 / 3 = 20
+  assert.equal(calculateInsuranceQuotaFromValue(57000, 950, 3), 20);
+  // Example: 45600 / 950 / 3 = 16
+  assert.equal(calculateInsuranceQuotaFromValue(45600, 950, 3), 16);
+
+  // 2. عدد الأرغفة = (الحصة الفعلية * نوع الخبز [ماو أو مجر]) / عدد المستفيدين
+  // ماو (1350): (20 * 1350) / 5400 = 5
+  assert.equal(
+    calculateLoavesByBreadTypeAndBeneficiaries(
+      20,
+      'بلدي مدعم ماو',
+      5400,
+      'ACTUAL_X_BREAD_DIV_BENEFICIARIES',
+      DEFAULT_CALCULATION_CONFIG.breadTypeRates
+    ),
+    5
+  );
+  // مجر (1250): (20 * 1250) / 5000 = 5
+  assert.equal(
+    calculateLoavesByBreadTypeAndBeneficiaries(
+      20,
+      'بلدي مجر',
+      5000,
+      'ACTUAL_X_BREAD_DIV_BENEFICIARIES',
+      DEFAULT_CALCULATION_CONFIG.breadTypeRates
+    ),
+    5
+  );
+
+  // 3. متوسط نصيب الفرد = (عدد الأرغفة * الحصة الفعلية) / عدد السكان
+  // Example: (1250 * 20) / 25000 = 1.00
+  assert.equal(calculatePerCapitaFromLoavesAndActualQuota(1250, 20, 25000), '1.00');
+
+  // 4. Recalculate full bakery object with config
+  const sampleBakery = {
+    ...INITIAL_BAKERIES[0],
+    insuranceValue: 57000,
+    flourBagPrice: 950,
+    actualQuota: 20,
+    breadType: 'بلدي مجر',
+    beneficiaries2025: 5000,
+    villagePopulation: 1000,
+  };
+  const updated = recalculateBakeryWithConfig(sampleBakery, DEFAULT_CALCULATION_CONFIG);
+  assert.equal(updated.insuranceQuota, 20);
+  assert.equal(updated.loavesCount, 5);
+  assert.equal(updated.perCapitaAverage, '0.10');
+});
+
+
 

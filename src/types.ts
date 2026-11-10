@@ -168,6 +168,27 @@ export interface CustomJobRole {
   badgeColor?: string;
 }
 
+export interface CalculationConfig {
+  /** معامل قسمة الحصة التأمينية: الحصة التأمينية = المبلغ التأميني / سعر الشيكارة / insuranceDivisor (افتراضي: 3) */
+  insuranceDivisor: number;
+  /** تفعيل حساب الحصة التأمينية تلقائياً من المبلغ التأميني وسعر الشيكارة */
+  autoCalcInsuranceQuota: boolean;
+  /** معدلات إنتاج الأرغفة لكل شيكارة حسب نوع الخبز (ماو / مجر / إلخ) */
+  breadTypeRates: Record<string, number>;
+  /**
+   * طريقة حساب خانة عدد الأرغفة:
+   * - 'ACTUAL_X_BREAD_DIV_BENEFICIARIES': الحصة الفعلية × معامل نوع الخبز (ماو/مجر) ÷ عدد المستفيدين
+   * - 'ACTUAL_X_BREAD_TOTAL': الحصة الفعلية × معامل نوع الخبز (ماو/مجر)
+   */
+  loavesFormulaMode: 'ACTUAL_X_BREAD_DIV_BENEFICIARIES' | 'ACTUAL_X_BREAD_TOTAL';
+  /**
+   * طريقة حساب خانة متوسط نصيب الفرد:
+   * - 'LOAVES_X_ACTUAL_DIV_POPULATION': (عدد الأرغفة × الحصة الفعلية) ÷ عدد السكان
+   * - 'LOAVES_DIV_POPULATION': عدد الأرغفة ÷ عدد السكان
+   */
+  perCapitaFormulaMode: 'LOAVES_X_ACTUAL_DIV_POPULATION' | 'LOAVES_DIV_POPULATION';
+}
+
 export interface SystemConfig {
   governorateTitle: string;
   directorateTitle: string;
@@ -180,6 +201,7 @@ export interface SystemConfig {
   gmailEmail?: string;
   gmailPassword?: string;
   googleDriveAutoSync?: boolean;
+  calculationConfig?: CalculationConfig;
 }
 
 export type UserRoleType = 'admin' | 'supervisor' | 'inspector' | 'auditor' | 'data_entry' | 'viewer' | string;

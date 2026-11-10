@@ -1,4 +1,20 @@
-import { Bakery, DebtRecord, DailyBakeryTask, TaskPriority } from '../types';
+import { Bakery, DebtRecord, DailyBakeryTask, TaskPriority, CalculationConfig } from '../types';
+
+/**
+ * الإعدادات الافتراضية لمعادلات الاحتساب التمويني المعتمدة بالمنظومة
+ */
+export const DEFAULT_CALCULATION_CONFIG: CalculationConfig = {
+  insuranceDivisor: 3,
+  autoCalcInsuranceQuota: true,
+  breadTypeRates: {
+    'بلدي مدعم ماو': 1350,
+    'بلدي مجر': 1250,
+    'خبز آلي': 1350,
+    'طباقي': 1000,
+  },
+  loavesFormulaMode: 'ACTUAL_X_BREAD_DIV_BENEFICIARIES',
+  perCapitaFormulaMode: 'LOAVES_X_ACTUAL_DIV_POPULATION',
+};
 
 /**
  * دالة الاختبار الشاملة والتدقيق البرمجي لكافة المعادلات التموينية والحسابية
@@ -19,14 +35,158 @@ export interface MathAuditResult {
 }
 
 /**
- * 1. حساب عدد الأرغفة التموينية = الحصة التأمينية × 1350
+ * 1.أ حساب الحصة التأمينية = المبلغ التأميني ÷ سعر الشيكارة داخل ملف صاحب المخبز ÷ 3
+ */
+export function calculateInsuranceQuotaFromValue(
+  insuranceValue: number,
+  flourBagPrice: number = 950,
+  divisor: number = 3
+): number {
+  const val = Number(insuranceValue) || 0;
+  const price = Number(flourBagPrice) > 0 ? Number(flourBagPrice) : 950;
+  const div = Number(divisor) > 0 ? Number(divisor) : 3;
+  if (val <= 0) return 0;
+  return Math.round((val / price / div) * 100) / 100;
+}
+
+/**
+ * 1.ب استخراج معامل نوع الخبز (ماو أو مجر أو غيره) التابع لخانة نوع الخبز
+ */
+export function getBreadTypeLoavesRate(
+  breadType: string = 'بلدي مدعم ماو',
+  customRates?: Record<string, number>
+): number {
+  const rates = { ...DEFAULT_CALCULATION_CONFIG.breadTypeRates, ...(customRates || {}) };
+  const clean = (breadType || '').trim();
+  if (rates[clean] !== undefined && Number(rates[clean]) > 0) {
+    return Number(rates[clean]);
+  }
+  if (clean.includes('مجر')) {
+    return rates['بلدي مجر'] || 1250;
+  }
+  if (clean.includes('ماو')) {
+    return rates['بلدي مدعم ماو'] || 1350;
+  }
+  if (clean.includes('طباقي')) {
+    return rates['طباقي'] || 1000;
+  }
+  return 1350;
+}
+
+/**
+ * 1.ج حساب عدد الأرغفة حسب المعادلة المطلوبة:
+ * عدد الأرغفة = (الحصة الفعلية × معامل نوع الخبز [ماو أو مجر]) ÷ عدد المستفيدين
+ * (أو إجمالي الأرغفة = الحصة الفعلية × معامل نوع الخبز عند اختيار وضع الإجمالي)
+ */
+export function calculateLoavesByBreadTypeAndBeneficiaries(
+  actualQuota: number,
+  breadType: string = 'بلدي مدعم ماو',
+  beneficiaries: number = 0,
+  mode: 'ACTUAL_X_BREAD_DIV_BENEFICIARIES' | 'ACTUAL_X_BREAD_TOTAL' = 'ACTUAL_X_BREAD_DIV_BENEFICIARIES',
+  customRates?: Record<string, number>
+): number {
+  const actual = Number(actualQuota) || 0;
+  const rate = getBreadTypeLoavesRate(breadType, customRates);
+  const totalDailyLoaves = actual * rate;
+
+  if (mode === 'ACTUAL_X_BREAD_DIV_BENEFICIARIES') {
+    const ben = Number(beneficiaries) || 0;
+    if (ben <= 0) return Math.round(totalDailyLoaves * 100) / 100;
+    return Math.round((totalDailyLoaves / ben) * 100) / 100;
+  }
+
+  return Math.round(totalDailyLoaves);
+}
+
+/**
+ * 1.د حساب متوسط نصيب الفرد حسب المعادلة المطلوبة:
+ * متوسط نصيب الفرد = (عدد الأرغفة × الحصة الفعلية) ÷ عدد السكان
+ */
+export function calculatePerCapitaFromLoavesAndActualQuota(
+  loavesCount: number,
+  actualQuota: number,
+  villagePopulation: number,
+  mode: 'LOAVES_X_ACTUAL_DIV_POPULATION' | 'LOAVES_DIV_POPULATION' = 'LOAVES_X_ACTUAL_DIV_POPULATION'
+): string {
+  const pop = Number(villagePopulation) || 0;
+  if (pop <= 0) return '0.00';
+  const loaves = Number(loavesCount) || 0;
+  const actual = Number(actualQuota) || 0;
+
+  if (mode === 'LOAVES_X_ACTUAL_DIV_POPULATION') {
+    return ((loaves * actual) / pop).toFixed(2);
+  }
+  return (loaves / pop).toFixed(2);
+}
+
+/**
+ * 1.هـ إعادة احتساب كافة خانات المخبز التموينية وفقاً لمعادلات المنظومة المحدثة
+ */
+export function recalculateBakeryWithConfig(
+  bakery: Bakery,
+  config: CalculationConfig = DEFAULT_CALCULATION_CONFIG
+): Bakery {
+  const bagPrice = Number(bakery.flourBagPrice) > 0 ? Number(bakery.flourBagPrice) : 950;
+  const divisor = Number(config.insuranceDivisor) > 0 ? Number(config.insuranceDivisor) : 3;
+
+  const computedInsuranceQuota =
+    config.autoCalcInsuranceQuota && Number(bakery.insuranceValue) > 0
+      ? calculateInsuranceQuotaFromValue(bakery.insuranceValue, bagPrice, divisor)
+      : Number(bakery.insuranceQuota) || 0;
+
+  const actualQuota = Number(bakery.actualQuota) > 0 ? Number(bakery.actualQuota) : computedInsuranceQuota;
+  const breadRate = getBreadTypeLoavesRate(bakery.breadType, config.breadTypeRates);
+  const totalDailyLoaves = actualQuota * breadRate;
+
+  const primaryBeneficiaries =
+    Number(bakery.beneficiaries2025) ||
+    Number(bakery.beneficiaries2024) ||
+    Number(bakery.beneficiaries2023) ||
+    0;
+
+  const computedLoavesCount = calculateLoavesByBreadTypeAndBeneficiaries(
+    actualQuota,
+    bakery.breadType,
+    primaryBeneficiaries,
+    config.loavesFormulaMode,
+    config.breadTypeRates
+  );
+
+  const computedPerCapita = calculatePerCapitaFromLoavesAndActualQuota(
+    computedLoavesCount,
+    actualQuota,
+    bakery.villagePopulation,
+    config.perCapitaFormulaMode
+  );
+
+  const avg2023 = calculateYearlyAverage(totalDailyLoaves, bakery.beneficiaries2023);
+  const avg2024 = calculateYearlyAverage(totalDailyLoaves, bakery.beneficiaries2024);
+  const avg2025 = calculateYearlyAverage(totalDailyLoaves, bakery.beneficiaries2025);
+  const avgDiff = calculateAverageDifference(avg2025, avg2023);
+
+  return {
+    ...bakery,
+    flourBagPrice: bagPrice,
+    insuranceQuota: computedInsuranceQuota,
+    actualQuota,
+    loavesCount: computedLoavesCount,
+    perCapitaAverage: computedPerCapita,
+    avg2023,
+    avg2024,
+    avg2025,
+    avgDiff,
+  };
+}
+
+/**
+ * 1. حساب عدد الأرغفة التموينية القياسي = الحصة × 1350
  */
 export function calculateLoavesCount(insuranceQuota: number): number {
   return Math.round(Number(insuranceQuota || 0) * 1350);
 }
 
 /**
- * 2. متوسط نصيب الفرد = عدد الأرغفة ÷ عدد سكان القرية (علامة عشرية ورقمين فقط)
+ * 2. متوسط نصيب الفرد القياسي = عدد الأرغفة ÷ عدد سكان القرية (علامة عشرية ورقمين فقط)
  */
 export function calculatePerCapitaAverage(loavesCount: number, villagePopulation: number): string {
   if (!villagePopulation || villagePopulation <= 0) return '0.00';
@@ -56,16 +216,13 @@ export function calculateAverageDifference(avg2025: string, avg2023: string): st
 export function formatDateDDMMYYYY(dateStr?: string): string {
   if (!dateStr || !dateStr.trim()) return '';
   const trimmed = dateStr.trim();
-  // If YYYY-MM-DD
   if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
     const [y, m, d] = trimmed.split('-');
     return `${d}/${m}/${y}`;
   }
-  // If already DD/MM/YYYY
   if (/^\d{2}\/\d{2}\/\d{4}$/.test(trimmed)) {
     return trimmed;
   }
-  // Fallback to JS Date parsing
   const d = new Date(trimmed);
   if (!isNaN(d.getTime())) {
     const day = String(d.getDate()).padStart(2, '0');
@@ -197,6 +354,46 @@ export function runComprehensiveAudit(
 ): MathAuditResult {
   const details: MathAuditResult['details'] = [];
 
+  // فحص 0.أ: معادلة الحصة التأمينية = المبلغ التأميني / سعر الشيكارة / 3
+  const insQuotaCalc = calculateInsuranceQuotaFromValue(57000, 950, 3);
+  details.push({
+    checkName: 'معادلة الحصة التأمينية (المبلغ التأميني ÷ سعر الشيكارة ÷ 3)',
+    expected: 20,
+    actual: insQuotaCalc,
+    status: insQuotaCalc === 20 ? 'PASS' : 'FAIL',
+    description: 'تحقق من احتساب الحصة التأمينية = 57,000 ج.م ÷ 950 ج.م ÷ 3 = 20 شيكارة.',
+  });
+
+  // فحص 0.ب: معادلة عدد الأرغفة حسب الحصة الفعلية ونوع الخبز (ماو/مجر) وعدد المستفيدين
+  const loavesByBreadAndBen = calculateLoavesByBreadTypeAndBeneficiaries(
+    20,
+    'بلدي مدعم ماو',
+    27000,
+    'ACTUAL_X_BREAD_DIV_BENEFICIARIES'
+  );
+  details.push({
+    checkName: 'معادلة عدد الأرغفة (الحصة الفعلية × نوع الخبز [ماو/مجر] ÷ عدد المستفيدين)',
+    expected: 1,
+    actual: loavesByBreadAndBen,
+    status: loavesByBreadAndBen === 1 ? 'PASS' : 'FAIL',
+    description: 'تحقق من (20 شيكارة × 1350 ماو) ÷ 27,000 مستفيد = 1.00 رغيف/مستفيد.',
+  });
+
+  // فحص 0.ج: معادلة متوسط نصيب الفرد = (عدد الأرغفة × الحصة الفعلية) ÷ عدد السكان
+  const perCapitaByFormula = calculatePerCapitaFromLoavesAndActualQuota(
+    1350,
+    20,
+    30000,
+    'LOAVES_X_ACTUAL_DIV_POPULATION'
+  );
+  details.push({
+    checkName: 'معادلة متوسط نصيب الفرد (عدد الأرغفة × الحصة الفعلية ÷ عدد السكان)',
+    expected: '0.90',
+    actual: perCapitaByFormula,
+    status: perCapitaByFormula === '0.90' ? 'PASS' : 'FAIL',
+    description: 'تحقق من ضرب عدد الأرغفة في الحصة الفعلية وقسمتها على عدد السكان (0.90).',
+  });
+
   // فحص 1: دقة معادلة الأرغفة (20 شيكارة × 1350 = 27,000 رغيف)
   const loaves20 = calculateLoavesCount(20);
   details.push({
@@ -204,7 +401,7 @@ export function runComprehensiveAudit(
     expected: 27000,
     actual: loaves20,
     status: loaves20 === 27000 ? 'PASS' : 'FAIL',
-    description: 'تحقق من ضرب الحصة التأمينية في المعيار التمويني المعتمد 1350 رغيفاً.',
+    description: 'تحقق من ضرب الحصة في المعيار التمويني المعتمد 1350 رغيفاً.',
   });
 
   // فحص 2: دقة الأرغفة مع الكسور (15.5 شيكارة × 1350 = 20,925 رغيف)
@@ -386,7 +583,6 @@ export function filterDebtsByAdvancedCriteria(
     if (issuingEntity !== 'ALL' && d.issuingEntity !== issuingEntity) return false;
     if (violationType !== 'ALL' && d.violationType !== violationType) return false;
 
-    // Date range filter (من - إلى) matching primary violationDate or disposalDate
     if (cleanFrom || cleanTo) {
       const recordDates = [d.violationDate, d.disposalDate]
         .map((dt) => (dt || '').trim())
@@ -429,5 +625,3 @@ export function filterDebtsByAdvancedCriteria(
     return true;
   });
 }
-
-

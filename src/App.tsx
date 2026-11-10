@@ -42,7 +42,7 @@ import {
   INITIAL_INBOX_MESSAGES,
   DEFAULT_OFFICIAL_LOGO
 } from './defaultData';
-import { formatDateDDMMYYYY } from './utils/auditHelper';
+import { formatDateDDMMYYYY, DEFAULT_CALCULATION_CONFIG } from './utils/auditHelper';
 import { getExpirationAlerts } from './components/AlertsModal';
 import { LoginModal } from './components/LoginModal';
 import { HeaderCustomizerModal } from './components/HeaderCustomizerModal';
@@ -69,6 +69,7 @@ import { SystemMasterEditorModal, DropdownCategoryKey } from './components/Syste
 import { AdvancedPermissionsModal } from './components/AdvancedPermissionsModal';
 import { InboxChatModal } from './components/InboxChatModal';
 import { DailyEntryBriefingModal } from './components/DailyEntryBriefingModal';
+import { CalculationFormulasModal } from './components/CalculationFormulasModal';
 import { HighDebtAlertNotification } from './types';
 import {
   downloadUpdatedAppHtml,
@@ -248,6 +249,7 @@ export default function App() {
   const [isAdvancedPermissionsModalOpen, setIsAdvancedPermissionsModalOpen] = useState(false);
   const [isInboxModalOpen, setIsInboxModalOpen] = useState(false);
   const [isDailyBriefingModalOpen, setIsDailyBriefingModalOpen] = useState(false);
+  const [isCalculationModalOpen, setIsCalculationModalOpen] = useState(false);
   const [masterEditorInitialCategory, setMasterEditorInitialCategory] = useState<DropdownCategoryKey>('ALL');
   const [dailyNotificationData, setDailyNotificationData] = useState<{
     isOpen: boolean;
@@ -825,6 +827,7 @@ export default function App() {
         if (isColumnModalOpen) { setIsColumnModalOpen(false); return; }
         if (isActivityModalOpen) { setIsActivityModalOpen(false); return; }
         if (isDailySettingsModalOpen) { setIsDailySettingsModalOpen(false); return; }
+        if (isCalculationModalOpen) { setIsCalculationModalOpen(false); return; }
       }
     };
     window.addEventListener('keydown', handleGlobalEscape, true);
@@ -849,6 +852,7 @@ export default function App() {
     isColumnModalOpen,
     isActivityModalOpen,
     isDailySettingsModalOpen,
+    isCalculationModalOpen,
   ]);
 
   // Auto-logout when user leaves the computer / idle for 10 minutes (with automatic full pre-logout save)
@@ -1683,6 +1687,27 @@ export default function App() {
               </span>
             </button>
 
+            {/* Interactive Calculation Formulas Studio Button (مشاركة وتعديل معادلات الاحتساب التمويني) */}
+            <button
+              type="button"
+              onClick={() => setIsCalculationModalOpen(true)}
+              className="w-full flex items-center justify-between px-3.5 py-2.5 bg-gradient-to-r from-amber-950 via-purple-950 to-slate-900 hover:from-amber-900 hover:to-purple-900 text-amber-300 border-2 border-amber-400/70 hover:border-amber-300 rounded-xl text-xs font-black transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] cursor-pointer shadow-lg"
+              title="مشاركة وتعديل معادلات الاحتساب التمويني (الحصة التأمينية = المبلغ التأميني ÷ سعر الشيكارة ÷ 3 • عدد الأرغفة = الحصة الفعلية × ماو/مجر ÷ المستفيدين • متوسط نصيب الفرد = عدد الأرغفة × الحصة الفعلية ÷ السكان)"
+            >
+              <div className="flex items-center gap-2">
+                <Calculator className="w-4 h-4 text-amber-400 icon-animated" />
+                <div className="text-right">
+                  <div className="leading-tight">تعديل معادلات الاحتساب</div>
+                  <div className="text-[9.5px] text-amber-200/90 font-bold">
+                    الحصة التأمينية • ماو/مجر • نصيب الفرد
+                  </div>
+                </div>
+              </div>
+              <span className="text-[10px] bg-amber-400 text-slate-950 px-2 py-0.5 rounded-full font-black shrink-0">
+                تفاعلي 🧮
+              </span>
+            </button>
+
             {/* Math Audit */}
             <button
               type="button"
@@ -2090,6 +2115,28 @@ export default function App() {
                   >
                     <Printer className="w-4 h-4 text-amber-400" />
                     <span>كشف الطباعة A4</span>
+                  </button>
+
+                  {/* 6. Calculation Formulas Studio Button */}
+                  <button
+                    type="button"
+                    onClick={() => setIsCalculationModalOpen(true)}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-600 hover:from-amber-400 hover:to-yellow-500 text-slate-950 rounded-xl text-xs font-black shadow-md border border-amber-300 transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer"
+                    title="مشاركة وتعديل معادلات الاحتساب التمويني وتطبيقها الفوري على جميع المخابز"
+                  >
+                    <Calculator className="w-4 h-4 text-slate-950" />
+                    <span>معادلات الاحتساب التمويني 🧮</span>
+                  </button>
+
+                  {/* 7. Quick Google Drive JSON Upload & Merge Button */}
+                  <button
+                    type="button"
+                    onClick={() => setIsBackupModalOpen(true)}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-500 hover:to-indigo-600 text-white rounded-xl text-xs font-black shadow-md border border-blue-400/60 transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer"
+                    title="رفع وحفظ ودمج ملفات JSON مباشرة على Google Drive بدون مسح أي بيانات"
+                  >
+                    <Upload className="w-4 h-4 text-amber-300" />
+                    <span>رفع ودمج JSON على Google Drive ☁️</span>
                   </button>
                 </div>
 
@@ -3237,7 +3284,37 @@ export default function App() {
             setMasterEditorInitialCategory('ALL');
             setIsMasterEditorModalOpen(true);
           }}
+          calculationConfig={appState.systemConfig.calculationConfig || DEFAULT_CALCULATION_CONFIG}
+          onOpenCalculationStudio={() => {
+            setIsCalculationModalOpen(true);
+          }}
           onSave={handleSaveBakery}
+        />
+      )}
+
+      {/* 1.05 Interactive Calculation Formulas Studio Modal (مشاركة وتعديل معادلات الاحتساب التمويني) */}
+      {isCalculationModalOpen && (
+        <CalculationFormulasModal
+          isOpen={isCalculationModalOpen}
+          onClose={() => setIsCalculationModalOpen(false)}
+          bakeries={appState.bakeries}
+          systemConfig={appState.systemConfig}
+          breadTypes={appState.breadTypes}
+          onSaveAndApplyFormulas={(updatedConfig, recalculatedBakeries, applyToAllBakeries) => {
+            triggerSave(
+              {
+                ...appState,
+                bakeries: applyToAllBakeries ? recalculatedBakeries : appState.bakeries,
+                systemConfig: {
+                  ...appState.systemConfig,
+                  calculationConfig: updatedConfig,
+                },
+              },
+              applyToAllBakeries
+                ? `تم حفظ معادلات الاحتساب التمويني وتحديث كافة العمليات الحسابية لعدد (${recalculatedBakeries.length}) مخبز بنجاح`
+                : 'تم حفظ إعدادات معادلات الاحتساب التمويني بنجاح'
+            );
+          }}
         />
       )}
 

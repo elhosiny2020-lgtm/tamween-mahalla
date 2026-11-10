@@ -1,6 +1,6 @@
 // Helper to sanitize modern CSS color functions (oklch, oklab, color-mix, light-dark)
 // in live and cloned documents before html2canvas parses stylesheets, preventing PDF export crashes,
-// and enforcing pure black (#000000) text and populated tables for all PDF and Print operations.
+// and enforcing pure black (#000000) text, crisp borders, and well-proportioned tables for all PDF and Print operations.
 
 function createColorConverter() {
   const canvas = document.createElement('canvas');
@@ -139,11 +139,28 @@ export function sanitizeClonedDocumentForPdf(clonedDoc: Document) {
         color: #000000 !important;
         -webkit-text-fill-color: #000000 !important;
         text-shadow: none !important;
+        font-family: 'Cairo', 'Segoe UI', Tahoma, Arial, sans-serif !important;
       }
-      .print-container table {
+
+      .official-report-header-table {
+        width: 100% !important;
+        border-collapse: collapse !important;
+        border: 2px solid #000000 !important;
+        margin-bottom: 8px !important;
+        background-color: #f8fafc !important;
+      }
+      .official-report-header-table td {
+        border: 1.5px solid #000000 !important;
+        padding: 8px 10px !important;
+        vertical-align: middle !important;
+        background-color: #f8fafc !important;
+      }
+
+      .print-container table.report-data-table {
         display: table !important;
         border-collapse: collapse !important;
         width: 100% !important;
+        table-layout: auto !important;
         border: 2px solid #000000 !important;
         margin-top: 6px !important;
         background-color: #ffffff !important;
@@ -161,6 +178,13 @@ export function sanitizeClonedDocumentForPdf(clonedDoc: Document) {
         display: table-row !important;
         page-break-inside: avoid !important;
       }
+      .print-container thead tr.group-header-row th {
+        background-color: #cbd5e1 !important;
+        color: #000000 !important;
+        border: 1.8px solid #000000 !important;
+        font-weight: 900 !important;
+        padding: 6px 4px !important;
+      }
       .print-container thead tr,
       .print-container th {
         display: table-cell !important;
@@ -168,9 +192,10 @@ export function sanitizeClonedDocumentForPdf(clonedDoc: Document) {
         color: #000000 !important;
         border: 1.5px solid #000000 !important;
         font-weight: 900 !important;
-        padding: 5px 3px !important;
+        padding: 6px 4px !important;
         text-align: center !important;
         vertical-align: middle !important;
+        line-height: 1.3 !important;
       }
       .print-container thead tr {
         display: table-row !important;
@@ -179,7 +204,7 @@ export function sanitizeClonedDocumentForPdf(clonedDoc: Document) {
         background-color: #ffffff !important;
       }
       .print-container tbody tr:nth-child(even) {
-        background-color: #f8fafc !important;
+        background-color: #f1f5f9 !important;
       }
       .print-container td {
         display: table-cell !important;
@@ -187,10 +212,19 @@ export function sanitizeClonedDocumentForPdf(clonedDoc: Document) {
         color: #000000 !important;
         border: 1.2px solid #000000 !important;
         font-weight: 800 !important;
-        padding: 4px 3px !important;
+        padding: 5px 4px !important;
         text-align: center !important;
         vertical-align: middle !important;
-        word-break: break-word !important;
+        line-height: 1.3 !important;
+      }
+      .print-container td.cell-owner-name {
+        text-align: right !important;
+        padding-right: 6px !important;
+        min-width: 115px !important;
+        font-weight: 900 !important;
+      }
+      .print-container td.cell-nowrap {
+        white-space: nowrap !important;
       }
       .print-container td span,
       .print-container td div {
@@ -203,6 +237,7 @@ export function sanitizeClonedDocumentForPdf(clonedDoc: Document) {
         color: #000000 !important;
         border: 2px solid #000000 !important;
         font-weight: 900 !important;
+        padding: 6px 4px !important;
       }
       .print-container .no-print {
         display: none !important;
@@ -286,11 +321,11 @@ export function printHtmlElementA4(
         <style>
           @page {
             size: A4 landscape;
-            margin: 6mm;
+            margin: 5mm;
           }
           * {
             box-sizing: border-box;
-            font-family: 'Cairo', 'Segoe UI', Tahoma, sans-serif !important;
+            font-family: 'Cairo', 'Segoe UI', Tahoma, Arial, sans-serif !important;
             color: #000000 !important;
             -webkit-text-fill-color: #000000 !important;
             text-shadow: none !important;
@@ -318,9 +353,22 @@ export function printHtmlElementA4(
             width: 100% !important;
             max-width: 100% !important;
             margin: 0 !important;
-            padding: 2mm !important;
+            padding: 1mm !important;
             background: #ffffff !important;
             color: #000000 !important;
+          }
+          .official-report-header-table {
+            width: 100% !important;
+            border-collapse: collapse !important;
+            border: 2px solid #000000 !important;
+            margin-bottom: 6px !important;
+            background-color: #f8fafc !important;
+          }
+          .official-report-header-table td {
+            border: 1.5px solid #000000 !important;
+            padding: 6px 8px !important;
+            vertical-align: middle !important;
+            background-color: #f8fafc !important;
           }
           table {
             width: 100% !important;
@@ -328,7 +376,7 @@ export function printHtmlElementA4(
             table-layout: auto !important;
             page-break-inside: auto;
             border: 2px solid #000000 !important;
-            margin-top: 8px !important;
+            margin-top: 6px !important;
             background-color: #ffffff !important;
           }
           tr {
@@ -347,15 +395,26 @@ export function printHtmlElementA4(
           th, td {
             border: 1.2px solid #000000 !important;
             color: #000000 !important;
-            padding: 5px 3px !important;
-            word-break: break-word !important;
-            line-height: 1.25 !important;
+            padding: 4px 3px !important;
+            line-height: 1.3 !important;
             text-align: center !important;
             vertical-align: middle !important;
+          }
+          td.cell-owner-name {
+            text-align: right !important;
+            padding-right: 5px !important;
+            font-weight: 900 !important;
+          }
+          td.cell-nowrap {
+            white-space: nowrap !important;
           }
           .report-font-compact th, .report-font-compact td { font-size: 7pt !important; }
           .report-font-standard th, .report-font-standard td { font-size: 8pt !important; }
           .report-font-large th, .report-font-large td { font-size: 9pt !important; }
+          thead tr.group-header-row th {
+            background-color: #cbd5e1 !important;
+            border: 1.5px solid #000000 !important;
+          }
           thead tr, th {
             background-color: #e2e8f0 !important;
             color: #000000 !important;
@@ -382,12 +441,12 @@ export function printHtmlElementA4(
           }
           .num-enlarged {
             font-weight: 900 !important;
-            font-size: 1.08em !important;
+            font-size: 1.06em !important;
             color: #000000 !important;
           }
           img {
-            max-width: 50px !important;
-            max-height: 50px !important;
+            max-width: 54px !important;
+            max-height: 54px !important;
             object-fit: contain !important;
           }
         </style>

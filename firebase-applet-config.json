@@ -1,12 +1,11 @@
 {
-  "projectId": "knitted-zenith-5thv3",
-  "appId": "1:1074328578628:web:be2835899f16ed176d2a11",
-  "apiKey": "AIzaSyD5AvO2piwqd0EMZANopQPcnXlOYKqavO8",
-  "authDomain": "knitted-zenith-5thv3.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-remixremixremix-2fe315f1-c29a-445a-844c-7c04133d6578",
-  "storageBucket": "knitted-zenith-5thv3.firebasestorage.app",
-  "messagingSenderId": "1074328578628",
+  "projectId": "project-8738c87a-beb2-401d-848",
+  "appId": "1:1030997990524:web:13909594cd35ae1b4b7df9",
+  "apiKey": "AIzaSyDYSZY4T2KWHVKJoXxlgEaY9wSzwGolu-M",
+  "authDomain": "project-8738c87a-beb2-401d-848.firebaseapp.com",
+  "storageBucket": "project-8738c87a-beb2-401d-848.firebasestorage.app",
+  "messagingSenderId": "1030997990524",
   "measurementId": "",
-  "oAuthClientId": "1074328578628-h8lavod6bb5gkqgjd58tvtsj361hb5tc.apps.googleusercontent.com",
+  "oAuthClientId": "1030997990524-2nme1lcge5jn1ht3e5tog3sgdbspluvl.apps.googleusercontent.com",
   "recaptchaSiteKey": ""
 }

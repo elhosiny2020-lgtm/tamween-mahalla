@@ -445,15 +445,15 @@ export const ReportModal: React.FC<ReportModalProps> = ({
 
     const element = printAreaRef.current;
     const opt = {
-      margin: [4, 4, 4, 4],
+      margin: [5, 5, 5, 5],
       filename: `${dynamicReportTitle.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`,
-      image: { type: 'jpeg', quality: 0.96 },
+      image: { type: 'jpeg', quality: 0.98 },
       html2canvas: {
-        scale: 1.5,
+        scale: 2,
         useCORS: true,
         logging: false,
         backgroundColor: '#ffffff',
-        windowWidth: 1440,
+        windowWidth: 1920,
         scrollX: 0,
         scrollY: 0,
         onclone: (clonedDoc: Document) => {
@@ -1363,65 +1363,117 @@ export const ReportModal: React.FC<ReportModalProps> = ({
               ref={printAreaRef}
               className="print-container bg-white text-black p-4 sm:p-6 mx-auto rounded-xl shadow-lg border border-slate-300 print:border-none print:shadow-none print:p-2 print:m-0 w-full"
             >
-              {/* OFFICIAL GOVERNMENTAL HEADER */}
-              <div className="border-b-2 border-black pb-3 mb-3">
-                <div className="flex items-center justify-between">
-                  {/* Right: Ministry & Directorate Hierarchy */}
-                  <div className="text-right">
-                    <h3 className="text-xs font-black text-black leading-tight">جمهورية مصر العربية</h3>
-                    <h3 className="text-xs font-black text-slate-900 leading-tight">{systemConfig.governorateTitle}</h3>
-                    <h4 className="text-xs font-black text-slate-800 leading-tight">{systemConfig.directorateTitle}</h4>
-                    <h4 className="text-xs font-black text-amber-900 leading-tight">{systemConfig.administrationTitle}</h4>
-                  </div>
+              {/* OFFICIAL FRAMED GOVERNMENTAL HEADER (الترويسة الرسمية للتقارير والطباعة و PDF) */}
+              <div className="mb-3">
+                <table className="official-report-header-table w-full border-collapse border-2 border-black bg-slate-50 text-black">
+                  <tbody>
+                    <tr>
+                      {/* Right Box: Sovereign & Ministry Hierarchy */}
+                      <td className="w-[30%] text-right border-2 border-black p-2.5 align-middle bg-slate-50">
+                        <div className="space-y-0.5 text-black font-black">
+                          <div className="text-xs font-black tracking-wide">جمهورية مصر العربية</div>
+                          <div className="text-xs font-black">وزارة التموين والتجارة الداخلية</div>
+                          <div className="text-[11px] font-black">{systemConfig.governorateTitle} - {systemConfig.directorateTitle}</div>
+                          <div className="text-[11px] font-black underline underline-offset-2">{systemConfig.administrationTitle}</div>
+                          <div className="text-[10px] font-bold pt-0.5">إدارة الرقابة التموينية وشئون المخابز والمديونيات</div>
+                        </div>
+                      </td>
 
-                  {/* Center: Official Emblem */}
-                  <div className="text-center">
-                    <div className="w-14 h-14 mx-auto p-1 border border-amber-600 rounded-full bg-white flex items-center justify-center">
-                      <img
-                        src={systemConfig.logoBase64}
-                        alt="شعار وزارة التموين"
-                        className="w-full h-full object-contain"
-                      />
-                    </div>
-                    <p className="text-[9px] font-black text-slate-800 mt-1">
-                      {systemConfig.englishSubtitle}
-                    </p>
-                  </div>
+                      {/* Center Box: Official Emblem & Framed Report Title */}
+                      <td className="w-[40%] text-center border-2 border-black p-2.5 align-middle bg-white">
+                        <div className="flex flex-col items-center justify-center gap-1">
+                          <div className="w-14 h-14 p-1 border-2 border-black rounded-full bg-white flex items-center justify-center shadow-2xs">
+                            <img
+                              src={systemConfig.logoBase64}
+                              alt="شعار وزارة التموين"
+                              className="w-full h-full object-contain"
+                            />
+                          </div>
+                          <div className="bg-slate-200 border-2 border-black px-3 py-1 rounded-lg w-full text-center mt-0.5">
+                            <h1 className="text-xs sm:text-sm font-black text-black leading-snug">
+                              {dynamicReportTitle}
+                            </h1>
+                          </div>
+                          {/* Executive Summary Strip inside Header */}
+                          <div className="flex flex-wrap items-center justify-center gap-2 text-[10px] font-black text-black pt-1">
+                            {reportType === 'bakeries' && (
+                              <>
+                                <span className="px-2 py-0.5 bg-slate-100 border border-black rounded">
+                                  إجمالي المخابز: {filteredBakeries.length} مخبز
+                                </span>
+                                <span className="px-2 py-0.5 bg-slate-100 border border-black rounded">
+                                  الحصة التأمينية: {reportTotals.totalInsurance.toLocaleString()} شيكارة
+                                </span>
+                                <span className="px-2 py-0.5 bg-slate-100 border border-black rounded">
+                                  الحصة الفعلية: {reportTotals.totalActual.toLocaleString()} شيكارة
+                                </span>
+                                <span className="px-2 py-0.5 bg-slate-100 border border-black rounded">
+                                  صافي المديونيات: {reportTotals.totalDebt.toLocaleString()} ج.م
+                                </span>
+                              </>
+                            )}
+                            {reportType === 'debts' && (
+                              <>
+                                <span className="px-2 py-0.5 bg-slate-100 border border-black rounded">
+                                  عدد القيود: {filteredDebts.length} قيد
+                                </span>
+                                <span className="px-2 py-0.5 bg-slate-100 border border-black rounded">
+                                  إجمالي المخالفات: {debtReportTotals.sumTotalViolations.toLocaleString()} ج.م
+                                </span>
+                                <span className="px-2 py-0.5 bg-slate-100 border border-black rounded">
+                                  صافي المتبقي: {debtReportTotals.sumNetRemaining.toLocaleString()} ج.م
+                                </span>
+                              </>
+                            )}
+                            {reportType === 'bakery-debts' && (
+                              <>
+                                <span className="px-2 py-0.5 bg-slate-100 border border-black rounded">
+                                  المخابز المشمولة: {filteredBakeryDebts.length} مخبز
+                                </span>
+                                <span className="px-2 py-0.5 bg-slate-100 border border-black rounded">
+                                  إجمالي المسدد: {bakeryDebtsTotals.sumTotalPaid.toLocaleString()} ج.م
+                                </span>
+                                <span className="px-2 py-0.5 bg-slate-100 border border-black rounded">
+                                  صافي المتبقي: {bakeryDebtsTotals.sumNetRemaining.toLocaleString()} ج.م ({bakeryDebtsTotals.overallRepaymentRate.toFixed(1)}%)
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </td>
 
-                  {/* Left: Metadata, Date & User Full Name / Username / Password */}
-                  <div className="text-left font-mono text-[10px] text-slate-900 space-y-0.5">
-                    <p className="font-black">
-                      {reportType === 'users'
-                        ? 'كشف حسابات المستخدمين والصلاحيات'
-                        : reportType === 'debts'
-                        ? 'كشف حساب المديونيات والمخالفات'
-                        : reportType === 'bakery-debts'
-                        ? 'كشف مديونيات ونسب سداد المخابز'
-                        : 'كشف حصر وتشغيل المخابز البلدية'}
-                    </p>
-                    <p>تاريخ الطباعة: {new Date().toLocaleDateString('ar-EG')}</p>
-                    <div className="font-black text-black bg-amber-100 px-2.5 py-1 rounded border border-black text-[10.5px] mt-1 space-y-0.5 text-right" dir="rtl">
-                      <div>الاسم بالكامل: {currentUser?.fullName || 'م/ أحمد الحسيني'}</div>
-                      <div>
-                        اليوزر: <span className="font-mono">{currentUser?.username || 'admin'}</span> | الباسورد:{' '}
-                        <span className="font-mono">{currentUser?.password || 'admin'}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Dynamic Centered Report Title */}
-                <div className="text-center mt-2 pt-2 border-t border-slate-300">
-                  <h1 className="text-sm sm:text-base font-black text-slate-900 underline underline-offset-4 tracking-wide">
-                    {dynamicReportTitle}
-                  </h1>
-                </div>
+                      {/* Left Box: Print Date, Scope & Official User Credentials */}
+                      <td className="w-[30%] text-right border-2 border-black p-2.5 align-middle bg-slate-50" dir="rtl">
+                        <div className="space-y-1 text-[10.5px] font-black text-black">
+                          <div className="flex items-center justify-between border-b border-slate-300 pb-0.5">
+                            <span>تاريخ الإصدار والطباعة:</span>
+                            <span className="font-mono">{new Date().toLocaleDateString('ar-EG')}</span>
+                          </div>
+                          <div className="flex items-center justify-between border-b border-slate-300 pb-0.5">
+                            <span>نطاق القرية / الوحدة:</span>
+                            <span>
+                              {selectedVillage === 'ALL' ? 'كافة قرى المركز' : selectedVillage}
+                              {selectedUnit !== 'ALL' ? ` - ${selectedUnit}` : ''}
+                            </span>
+                          </div>
+                          <div className="bg-white px-2 py-1 rounded border border-black space-y-0.5 mt-1">
+                            <div>الاسم بالكامل: {currentUser?.fullName || 'م/ أحمد الحسيني'}</div>
+                            <div>
+                              اليوزر: <span className="font-mono">{currentUser?.username || 'admin'}</span> | الباسورد:{' '}
+                              <span className="font-mono">{currentUser?.password || 'admin'}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
 
               {/* REPORT BODY ACCORDING TO SELECTED TAB */}
               {reportType === 'users' ? (
                 <div className="w-full overflow-visible space-y-3 text-black">
-                  <table className={`report-table-compact w-full text-center border-collapse border border-black leading-tight text-black ${fontSizeClass}`}>
+                  <table className={`report-data-table report-table-compact w-full text-center border-collapse border-2 border-black leading-tight text-black ${fontSizeClass}`}>
                     <thead>
                       <tr className="bg-slate-200 text-black font-black border border-black">
                         <th className="border border-black py-1.5 px-1 w-10 text-black">م</th>
@@ -1480,35 +1532,10 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                     </div>
                   )}
 
-                  <table className={`report-table-compact w-full text-center border-collapse border border-black leading-tight table-fixed text-black ${fontSizeClass}`}>
-                    <colgroup>
-                      <col style={{ width: '2.2%' }} />
-                      <col style={{ width: '10.5%' }} />
-                      <col style={{ width: '4.8%' }} />
-                      {activeColumns.village && <col style={{ width: '4.5%' }} />}
-                      {activeColumns.localUnit && <col style={{ width: '4.5%' }} />}
-                      <col style={{ width: '4.5%' }} />
-                      <col style={{ width: '5%' }} />
-                      <col style={{ width: '6%' }} />
-                      <col style={{ width: '4.8%' }} />
-                      <col style={{ width: '6.5%' }} />
-                      <col style={{ width: '4.5%' }} />
-                      <col style={{ width: '4.5%' }} />
-                      <col style={{ width: '4.5%' }} />
-                      <col style={{ width: '6.2%' }} />
-                      <col style={{ width: '4.5%' }} />
-                      <col style={{ width: '4.5%' }} />
-                      <col style={{ width: '4.5%' }} />
-                      <col style={{ width: '6.2%' }} />
-                      <col style={{ width: '4.5%' }} />
-                      <col style={{ width: '4.5%' }} />
-                      <col style={{ width: '5.5%' }} />
-                      <col style={{ width: '6.3%' }} />
-                    </colgroup>
-
+                  <table className={`report-data-table report-table-compact w-full text-center border-collapse border-2 border-black leading-tight table-auto text-black ${fontSizeClass}`}>
                     <thead>
                       {/* Top Grouped Header */}
-                      <tr className="bg-slate-300 text-black font-black border border-black">
+                      <tr className="group-header-row bg-slate-300 text-black font-black border border-black">
                         <th
                           colSpan={3 + (activeColumns.village ? 1 : 0) + (activeColumns.localUnit ? 1 : 0)}
                           className="border border-black py-1 px-1 bg-slate-300 text-black"
@@ -1774,26 +1801,9 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                     </div>
                   )}
 
-                  <table className={`report-table-compact w-full text-center border-collapse border border-black leading-tight table-fixed text-black ${fontSizeClass}`}>
-                    <colgroup>
-                      <col style={{ width: '2.5%' }} />
-                      <col style={{ width: '15%' }} />
-                      <col style={{ width: '6.5%' }} />
-                      {activeColumns.village && <col style={{ width: '5.5%' }} />}
-                      {activeColumns.localUnit && <col style={{ width: '5.5%' }} />}
-                      <col style={{ width: '4.5%' }} />
-                      <col style={{ width: '8.5%' }} />
-                      <col style={{ width: '6%' }} />
-                      <col style={{ width: '5.5%' }} />
-                      <col style={{ width: '5.5%' }} />
-                      <col style={{ width: '8%' }} />
-                      <col style={{ width: '8.5%' }} />
-                      <col style={{ width: '9%' }} />
-                      <col style={{ width: '10%' }} />
-                    </colgroup>
-
+                  <table className={`report-data-table report-table-compact w-full text-center border-collapse border-2 border-black leading-tight table-auto text-black ${fontSizeClass}`}>
                     <thead>
-                      <tr className="bg-slate-300 text-black font-black border border-black">
+                      <tr className="group-header-row bg-slate-300 text-black font-black border border-black">
                         <th
                           colSpan={3 + (activeColumns.village ? 1 : 0) + (activeColumns.localUnit ? 1 : 0)}
                           className="border border-black py-1 px-1 bg-slate-300 text-black"
@@ -1976,62 +1986,10 @@ export const ReportModal: React.FC<ReportModalProps> = ({
               ) : (
                 /* GENERAL BAKERIES REGISTRY TABLE */
                 <div className="w-full overflow-visible text-black">
-                  <table className={`report-table-compact w-full text-center border-collapse border border-black leading-tight table-fixed text-black ${fontSizeClass}`}>
-                    {/* Column percentage widths dynamically normalized to 100% */}
-                    <colgroup>
-                      {(() => {
-                        const baseWeights: Record<string, number> = {
-                          index: 2.2,
-                          bakeryOwnerName: 9.5,
-                          machineNumber: 4.5,
-                          village: 4.2,
-                          localUnit: 4.2,
-                          remainingDebt: 4.5,
-                          // الحصص والبيانات التموينية
-                          insuranceValue: 3.8,
-                          insuranceQuota: 3.5,
-                          actualQuota: 3.5,
-                          loavesCount: 4.0,
-                          perCapitaAverage: 3.6,
-                          // إحصائيات السكان
-                          villagePopulation: 3.8,
-                          beneficiaries2023: 3.4,
-                          beneficiaries2024: 3.4,
-                          beneficiaries2025: 3.4,
-                          avg2023: 3.2,
-                          avg2024: 3.2,
-                          avg2025: 3.2,
-                          avgDiff: 3.4,
-                          // التصنيف والتشغيل
-                          activityStatus: 3.5,
-                          bakeryCategory: 4.0,
-                          breadType: 3.8,
-                          flourBagPrice: 3.2,
-                          breadTypeCount: 2.6,
-                          lineType: 3.4,
-                          fuelType: 3.0,
-                          // الاتصال والتراخيص
-                          phone: 4.2,
-                          nationalId: 5.5,
-                          commercialRegDate: 3.6,
-                          bakeryLicenseDate: 3.6,
-                          leaseAgreementDate: 3.6,
-                          taxCardDate: 3.6,
-                        };
-
-                        const activeKeys = Object.keys(activeColumns).filter((k) => activeColumns[k]);
-                        const totalWeight = activeKeys.reduce((acc, k) => acc + (baseWeights[k] || 3.5), 0) || 1;
-
-                        return activeKeys.map((colKey) => {
-                          const pct = (((baseWeights[colKey] || 3.5) / totalWeight) * 100).toFixed(2);
-                          return <col key={colKey} style={{ width: `${pct}%` }} />;
-                        });
-                      })()}
-                    </colgroup>
-
+                  <table className={`report-data-table report-table-compact w-full text-center border-collapse border-2 border-black leading-tight table-auto text-black ${fontSizeClass}`}>
                     <thead>
                       {/* Top Grouped Header Row */}
-                      <tr className="bg-slate-300 text-black font-black border border-black text-[8px] print:text-[7.5pt]">
+                      <tr className="group-header-row bg-slate-300 text-black font-black border border-black text-[8.5px] print:text-[8pt]">
                         {basicInfoSpan > 0 && (
                           <th colSpan={basicInfoSpan} className="border border-black py-1 px-1 bg-slate-300 text-black">
                             البيانات الأساسية وموقع المخبز
@@ -2183,20 +2141,20 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                             key={b.id}
                             className={idx % 2 === 0 ? 'bg-white text-black font-black' : 'bg-slate-50 text-black font-black print:bg-slate-100/60'}
                           >
-                            {activeColumns.index && <td className="border border-black py-1 px-0.5 num-enlarged text-black font-black">{idx + 1}</td>}
+                            {activeColumns.index && <td className="border border-black py-1.5 px-1 num-enlarged cell-nowrap text-black font-black">{idx + 1}</td>}
                             {activeColumns.bakeryOwnerName && (
-                              <td className="border border-black py-1 px-1 font-black text-right text-black break-words whitespace-normal leading-snug">
+                              <td className="border border-black py-1.5 px-1.5 font-black text-right cell-owner-name text-black leading-snug">
                                 {b.bakeryOwnerName}
                               </td>
                             )}
                             {activeColumns.machineNumber && (
-                              <td className="border border-black py-1 px-0.5 num-enlarged font-black text-black">{b.machineNumber}</td>
+                              <td className="border border-black py-1.5 px-1 num-enlarged cell-nowrap font-black text-black">{b.machineNumber}</td>
                             )}
-                            {activeColumns.village && <td className="border border-black py-1 px-0.5 text-black font-black">{b.village}</td>}
-                            {activeColumns.localUnit && <td className="border border-black py-1 px-0.5 text-black font-black">{b.localUnit}</td>}
+                            {activeColumns.village && <td className="border border-black py-1.5 px-1 text-black font-black">{b.village}</td>}
+                            {activeColumns.localUnit && <td className="border border-black py-1.5 px-1 text-black font-black">{b.localUnit}</td>}
                             {activeColumns.remainingDebt && (
                               <td
-                                className={`border border-black py-1 px-0.5 num-enlarged font-black text-black ${
+                                className={`border border-black py-1.5 px-1 num-enlarged cell-nowrap font-black text-black ${
                                   isOver20k
                                     ? 'bg-red-100/70'
                                     : debtVal > 0
@@ -2210,86 +2168,86 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                             )}
                             {/* 1. الحصص والبيانات التموينية */}
                             {activeColumns.insuranceValue && (
-                              <td className="border border-black py-1 px-0.5 num-enlarged text-black font-black">{b.insuranceValue?.toLocaleString()}</td>
+                              <td className="border border-black py-1.5 px-1 num-enlarged cell-nowrap text-black font-black">{b.insuranceValue?.toLocaleString()}</td>
                             )}
                             {activeColumns.insuranceQuota && (
-                              <td className="border border-black py-1 px-0.5 num-enlarged text-black font-black">{b.insuranceQuota}</td>
+                              <td className="border border-black py-1.5 px-1 num-enlarged cell-nowrap text-black font-black">{b.insuranceQuota}</td>
                             )}
                             {activeColumns.actualQuota && (
-                              <td className="border border-black py-1 px-0.5 num-enlarged text-black font-black">{b.actualQuota}</td>
+                              <td className="border border-black py-1.5 px-1 num-enlarged cell-nowrap text-black font-black">{b.actualQuota}</td>
                             )}
                             {activeColumns.loavesCount && (
-                              <td className="border border-black py-1 px-0.5 num-enlarged font-black text-black bg-amber-50/40">
+                              <td className="border border-black py-1.5 px-1 num-enlarged cell-nowrap font-black text-black bg-amber-50/40">
                                 {b.loavesCount?.toLocaleString()}
                               </td>
                             )}
                             {activeColumns.perCapitaAverage && (
-                              <td className="border border-black py-1 px-0.5 num-enlarged font-black text-black">{b.perCapitaAverage}</td>
+                              <td className="border border-black py-1.5 px-1 num-enlarged cell-nowrap font-black text-black">{b.perCapitaAverage}</td>
                             )}
                             {/* 2. إحصائيات السكان */}
                             {activeColumns.villagePopulation && (
-                              <td className="border border-black py-1 px-0.5 num-enlarged text-black font-black">{b.villagePopulation?.toLocaleString()}</td>
+                              <td className="border border-black py-1.5 px-1 num-enlarged cell-nowrap text-black font-black">{b.villagePopulation?.toLocaleString()}</td>
                             )}
                             {activeColumns.beneficiaries2023 && (
-                              <td className="border border-black py-1 px-0.5 num-enlarged text-black font-black">{b.beneficiaries2023?.toLocaleString()}</td>
+                              <td className="border border-black py-1.5 px-1 num-enlarged cell-nowrap text-black font-black">{b.beneficiaries2023?.toLocaleString()}</td>
                             )}
                             {activeColumns.beneficiaries2024 && (
-                              <td className="border border-black py-1 px-0.5 num-enlarged text-black font-black">{b.beneficiaries2024?.toLocaleString()}</td>
+                              <td className="border border-black py-1.5 px-1 num-enlarged cell-nowrap text-black font-black">{b.beneficiaries2024?.toLocaleString()}</td>
                             )}
                             {activeColumns.beneficiaries2025 && (
-                              <td className="border border-black py-1 px-0.5 num-enlarged text-black font-black">{b.beneficiaries2025?.toLocaleString()}</td>
+                              <td className="border border-black py-1.5 px-1 num-enlarged cell-nowrap text-black font-black">{b.beneficiaries2025?.toLocaleString()}</td>
                             )}
                             {activeColumns.avg2023 && (
-                              <td className="border border-black py-1 px-0.5 num-enlarged text-black font-black">{b.avg2023}</td>
+                              <td className="border border-black py-1.5 px-1 num-enlarged cell-nowrap text-black font-black">{b.avg2023}</td>
                             )}
                             {activeColumns.avg2024 && (
-                              <td className="border border-black py-1 px-0.5 num-enlarged text-black font-black">{b.avg2024}</td>
+                              <td className="border border-black py-1.5 px-1 num-enlarged cell-nowrap text-black font-black">{b.avg2024}</td>
                             )}
                             {activeColumns.avg2025 && (
-                              <td className="border border-black py-1 px-0.5 num-enlarged text-black font-black">{b.avg2025}</td>
+                              <td className="border border-black py-1.5 px-1 num-enlarged cell-nowrap text-black font-black">{b.avg2025}</td>
                             )}
                             {activeColumns.avgDiff && (
-                              <td className="border border-black py-1 px-0.5 num-enlarged font-black text-black">{b.avgDiff}</td>
+                              <td className="border border-black py-1.5 px-1 num-enlarged cell-nowrap font-black text-black">{b.avgDiff}</td>
                             )}
                             {/* 3. التصنيف والتشغيل */}
                             {activeColumns.activityStatus && (
-                              <td className="border border-black py-1 px-0.5 font-black text-black">{b.activityStatus}</td>
+                              <td className="border border-black py-1.5 px-1 cell-nowrap font-black text-black">{b.activityStatus}</td>
                             )}
                             {activeColumns.bakeryCategory && (
-                              <td className="border border-black py-1 px-0.5 font-black text-black">{b.bakeryCategory || 'مخبز بلدي مدعم'}</td>
+                              <td className="border border-black py-1.5 px-1 font-black text-black">{b.bakeryCategory || 'مخبز بلدي مدعم'}</td>
                             )}
                             {activeColumns.breadType && (
-                              <td className="border border-black py-1 px-0.5 text-black font-black">{b.breadType}</td>
+                              <td className="border border-black py-1.5 px-1 text-black font-black">{b.breadType}</td>
                             )}
                             {activeColumns.flourBagPrice && (
-                              <td className="border border-black py-1 px-0.5 num-enlarged font-black text-black">{(b.flourBagPrice ?? 950).toLocaleString()}</td>
+                              <td className="border border-black py-1.5 px-1 num-enlarged cell-nowrap font-black text-black">{(b.flourBagPrice ?? 950).toLocaleString()}</td>
                             )}
                             {activeColumns.breadTypeCount && (
-                              <td className="border border-black py-1 px-0.5 num-enlarged text-black font-black">{b.breadTypeCount}</td>
+                              <td className="border border-black py-1.5 px-1 num-enlarged cell-nowrap text-black font-black">{b.breadTypeCount}</td>
                             )}
                             {activeColumns.lineType && (
-                              <td className="border border-black py-1 px-0.5 text-black font-black">{b.lineType}</td>
+                              <td className="border border-black py-1.5 px-1 text-black font-black">{b.lineType}</td>
                             )}
                             {activeColumns.fuelType && (
-                              <td className="border border-black py-1 px-0.5 text-black font-black">{b.fuelType}</td>
+                              <td className="border border-black py-1.5 px-1 text-black font-black">{b.fuelType}</td>
                             )}
                             {activeColumns.phone && (
-                              <td className="border border-black py-1 px-0.5 num-enlarged font-mono text-black font-black">{b.phone}</td>
+                              <td className="border border-black py-1.5 px-1 num-enlarged cell-nowrap font-mono text-black font-black">{b.phone}</td>
                             )}
                             {activeColumns.nationalId && (
-                              <td className="border border-black py-1 px-0.5 num-enlarged font-mono text-black font-black">{b.nationalId}</td>
+                              <td className="border border-black py-1.5 px-1 num-enlarged cell-nowrap font-mono text-black font-black">{b.nationalId}</td>
                             )}
                             {activeColumns.commercialRegDate && (
-                              <td className="border border-black py-1 px-0.5 num-enlarged font-mono text-black font-black">{formatDateDDMMYYYY(b.commercialRegDate)}</td>
+                              <td className="border border-black py-1.5 px-1 num-enlarged cell-nowrap font-mono text-black font-black">{formatDateDDMMYYYY(b.commercialRegDate)}</td>
                             )}
                             {activeColumns.bakeryLicenseDate && (
-                              <td className="border border-black py-1 px-0.5 num-enlarged font-mono text-black font-black">{formatDateDDMMYYYY(b.bakeryLicenseDate)}</td>
+                              <td className="border border-black py-1.5 px-1 num-enlarged cell-nowrap font-mono text-black font-black">{formatDateDDMMYYYY(b.bakeryLicenseDate)}</td>
                             )}
                             {activeColumns.leaseAgreementDate && (
-                              <td className="border border-black py-1 px-0.5 num-enlarged font-mono text-black font-black">{formatDateDDMMYYYY(b.leaseAgreementDate)}</td>
+                              <td className="border border-black py-1.5 px-1 num-enlarged cell-nowrap font-mono text-black font-black">{formatDateDDMMYYYY(b.leaseAgreementDate)}</td>
                             )}
                             {activeColumns.taxCardDate && (
-                              <td className="border border-black py-1 px-0.5 num-enlarged font-mono text-black font-black">{formatDateDDMMYYYY(b.taxCardDate)}</td>
+                              <td className="border border-black py-1.5 px-1 num-enlarged cell-nowrap font-mono text-black font-black">{formatDateDDMMYYYY(b.taxCardDate)}</td>
                             )}
                           </tr>
                         );

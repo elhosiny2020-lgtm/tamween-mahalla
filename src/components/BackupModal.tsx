@@ -20,6 +20,21 @@ import {
 import { DEFAULT_OFFICIAL_LOGO } from '../defaultData';
 import { usePWAInstall } from '../hooks/usePWAInstall';
 import {
+  googleSignIn,
+  hasValidAccessToken,
+  getConnectedGoogleEmail,
+  signOutGoogle,
+} from '../lib/firebase';
+import {
+  uploadAndSyncJsonToGoogleDrive,
+  fetchAndMergeAllJsonFromGoogleDrive,
+  listGoogleDriveJsonBackups,
+  downloadGoogleDriveFileJson,
+  extractAppStateFromArbitraryJson,
+  DriveBackupFileItem,
+  DRIVE_MAIN_BACKUP_FILENAME,
+} from '../utils/googleDriveSync';
+import {
   HardDrive,
   Download,
   Upload,
@@ -90,12 +105,38 @@ export const BackupModal: React.FC<BackupModalProps> = ({
   const [googleDriveAutoSync, setGoogleDriveAutoSync] = useState<boolean>(
     () => localStorage.getItem('TAMWEEN_GMAIL_DRIVE_AUTOSYNC') !== 'false'
   );
+  const [isDriveConnected, setIsDriveConnected] = useState<boolean>(() => hasValidAccessToken());
+  const [driveConnectedEmail, setDriveConnectedEmail] = useState<string | null>(() => getConnectedGoogleEmail());
+  const [driveBackupFiles, setDriveBackupFiles] = useState<DriveBackupFileItem[]>([]);
+  const [isLoadingDriveFiles, setIsLoadingDriveFiles] = useState<boolean>(false);
 
   const { isInstallable, isInstalled, install } = usePWAInstall();
   const autoSaveInfo = getLatestAutoSaveInfo();
   const formattedAutoSaveTime = autoSaveInfo?.timestamp
     ? new Date(autoSaveInfo.timestamp).toLocaleString('ar-EG')
     : null;
+
+  const refreshDriveFilesList = async (interactive: boolean = false) => {
+    try {
+      setIsLoadingDriveFiles(true);
+      const files = await listGoogleDriveJsonBackups(interactive);
+      setDriveBackupFiles(files);
+      setIsDriveConnected(true);
+      setDriveConnectedEmail(getConnectedGoogleEmail() || gmailEmail);
+    } catch {
+      // silent if not yet authenticated
+    } finally {
+      setIsLoadingDriveFiles(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen && hasValidAccessToken()) {
+      setIsDriveConnected(true);
+      setDriveConnectedEmail(getConnectedGoogleEmail() || gmailEmail);
+      refreshDriveFilesList(false);
+    }
+  }, [isOpen]);
 
   // Escape key listener
   useEffect(() => {
@@ -111,6 +152,113 @@ export const BackupModal: React.FC<BackupModalProps> = ({
   }, [isOpen, onClose]);
 
   if (!isOpen) return null;
+
+  // Direct Google Drive OAuth Sign-In + Instant Upload & Merge
+  const handleConnectAndUploadGoogleDrive = async (createSnapshotCopy: boolean = false) => {
+    setIsProcessing(true);
+    setStatusMsg({
+      text: 'جاري الاتصال المباشر بحساب Google Drive ورفع ملف قاعدة البيانات JSON مع دمج أي بيانات سابقة بدون مسح...',
+      type: 'info',
+    });
+    try {
+      const res = await uploadAndSyncJsonToGoogleDrive(currentState, {
+        interactive: true,
+        createSnapshotCopy,
+      });
+      setIsDriveConnected(true);
+      setDriveConnectedEmail(res.email || gmailEmail);
+      if (res.mergedState) {
+        onRestoreState(res.mergedState);
+      }
+      await refreshDriveFilesList(false);
+      setStatusMsg({
+        text: res.message,
+        type: 'success',
+      });
+    } catch (err: unknown) {
+      setStatusMsg({
+        text: `تنبيه الاتصال بـ Google Drive: ${(err as Error).message}`,
+        type: 'error',
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Direct Fetch & Additive Merge from Google Drive
+  const handleFetchAndMergeFromGoogleDrive = async () => {
+    setIsProcessing(true);
+    setStatusMsg({
+      text: 'جاري جلب ملفات JSON من حسابك في Google Drive ودمج البيانات الجديدة فقط بدون مسح أي سجل...',
+      type: 'info',
+    });
+    try {
+      const res = await fetchAndMergeAllJsonFromGoogleDrive(currentState, true);
+      setIsDriveConnected(true);
+      setDriveConnectedEmail(res.email || gmailEmail);
+      if (res.mergedState) {
+        onRestoreState(res.mergedState);
+      }
+      await refreshDriveFilesList(false);
+      setStatusMsg({
+        text: res.message,
+        type: 'success',
+      });
+    } catch (err: unknown) {
+      setStatusMsg({
+        text: `تنبيه جلب ملفات Google Drive: ${(err as Error).message}`,
+        type: 'error',
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Merge any local JSON file additively without deleting a single existing record
+  const handleAdditiveMergeAnyJsonFile = (file: File) => {
+    setIsProcessing(true);
+    setStatusMsg({
+      text: `جاري قراءة ملف (${file.name}) ودمج البيانات الجديدة فقط بدون مسح أي بيانات بالقاعدة...`,
+      type: 'info',
+    });
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const rawText = String(reader.result || '');
+        const parsed = JSON.parse(rawText);
+        const extracted = extractAppStateFromArbitraryJson(parsed);
+        if (!extracted) {
+          throw new Error('ملف JSON المختار لا يحتوي على بيانات مخابز أو مديونيات صالحة للدمج.');
+        }
+        const beforeBakeries = currentState.bakeries.length;
+        const beforeDebts = currentState.debts.length;
+        const merged = mergeStates(currentState, extracted);
+        const addedB = Math.max(0, merged.bakeries.length - beforeBakeries);
+        const addedD = Math.max(0, merged.debts.length - beforeDebts);
+
+        onRestoreState(merged);
+
+        // If connected to Google Drive, also auto-upload the merged result directly to Google Drive!
+        if (hasValidAccessToken() && googleDriveAutoSync) {
+          await uploadAndSyncJsonToGoogleDrive(merged, { interactive: false }).catch(() => {});
+          await refreshDriveFilesList(false);
+        }
+
+        setStatusMsg({
+          text: `تم دمج ملف (${file.name}) بنجاح تام بدون مسح أي بيانات سابقة! أضيف (${addedB}) مخبز جديد و (${addedD}) قيد مديونية جديد. الإجمالي الحالي: (${merged.bakeries.length}) مخبز و (${merged.debts.length}) مديونية.`,
+          type: 'success',
+        });
+      } catch (err: unknown) {
+        setStatusMsg({
+          text: `فشل دمج ملف JSON: ${(err as Error).message}`,
+          type: 'error',
+        });
+      } finally {
+        setIsProcessing(false);
+      }
+    };
+    reader.readAsText(file);
+  };
 
   // 1. Comprehensive Smart Sync: Update existing & add missing only
   const handleSmartSyncAndUpsert = async () => {
@@ -593,6 +741,203 @@ export const BackupModal: React.FC<BackupModalProps> = ({
               <div className="leading-relaxed flex-1">{statusMsg.text}</div>
             </div>
           )}
+
+          {/* SECTION 0: REAL GOOGLE DRIVE DIRECT JSON UPLOAD, AUTO-BACKUP & NON-DESTRUCTIVE MERGE */}
+          <div className="p-4 bg-gradient-to-br from-emerald-50 via-teal-50 to-white border-2 border-emerald-600 rounded-2xl space-y-3 shadow-md text-black">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-emerald-300 pb-2.5">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-emerald-700 text-white rounded-xl shadow-xs">
+                  <Globe className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-black text-black">
+                    الرفع المباشر لملفات JSON على Google Drive + الحفظ التلقائي + الدمج الذكي بدون مسح
+                  </h4>
+                  <p className="text-[11px] font-bold text-slate-800">
+                    حفظ ملف ({DRIVE_MAIN_BACKUP_FILENAME}) مباشرة على Google Drive مع إضافة البيانات الجديدة فقط عند الدمج
+                  </p>
+                </div>
+              </div>
+              <span
+                className={`text-[10px] font-black px-2.5 py-1 rounded-full border ${
+                  isDriveConnected
+                    ? 'bg-emerald-200 border-emerald-600 text-black'
+                    : 'bg-amber-200 border-amber-500 text-black'
+                }`}
+              >
+                {isDriveConnected ? `متصل بـ Google Drive (${driveConnectedEmail || gmailEmail})` : 'جاهز للربط المباشر'}
+              </span>
+            </div>
+
+            {/* Official Google Sign-In & Direct Action Buttons */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <button
+                type="button"
+                disabled={isProcessing}
+                onClick={() => handleConnectAndUploadGoogleDrive(false)}
+                className="flex items-center justify-center gap-2 py-2.5 px-3 bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 text-white rounded-xl text-xs font-black shadow-sm transition cursor-pointer"
+              >
+                <svg className="w-4 h-4 bg-white rounded-full p-0.5 shrink-0" viewBox="0 0 24 24">
+                  <path
+                    fill="#4285F4"
+                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"
+                  />
+                  <path
+                    fill="#34A853"
+                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                  />
+                  <path
+                    fill="#FBBC05"
+                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+                  />
+                  <path
+                    fill="#EA4335"
+                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                  />
+                </svg>
+                <span>رفع وحفظ ملف JSON مباشرة على Google Drive الآن</span>
+              </button>
+
+              <button
+                type="button"
+                disabled={isProcessing}
+                onClick={handleFetchAndMergeFromGoogleDrive}
+                className="flex items-center justify-center gap-2 py-2.5 px-3 bg-blue-700 hover:bg-blue-800 disabled:opacity-50 text-white rounded-xl text-xs font-black shadow-sm transition cursor-pointer"
+              >
+                <RefreshCw className={`w-4 h-4 ${isProcessing ? 'animate-spin' : ''}`} />
+                <span>جلب ودمج ملفات JSON من Google Drive (بدون مسح)</span>
+              </button>
+            </div>
+
+            {/* Additive JSON File Merge from Local Disk + Auto-Sync Toggle */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+              <label className="flex items-center justify-center gap-2 py-2.5 px-3 bg-amber-500 hover:bg-amber-600 text-black border-2 border-black rounded-xl text-xs font-black shadow-sm transition cursor-pointer text-center">
+                <Upload className="w-4 h-4 text-black shrink-0" />
+                <span>دمج أي ملف JSON خارجي (يضيف الجديد فقط بدون مسح)</span>
+                <input
+                  type="file"
+                  accept=".json"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) handleAdditiveMergeAnyJsonFile(f);
+                    e.target.value = '';
+                  }}
+                />
+              </label>
+
+              <button
+                type="button"
+                disabled={isProcessing}
+                onClick={() => handleConnectAndUploadGoogleDrive(true)}
+                className="flex items-center justify-center gap-2 py-2.5 px-3 bg-slate-900 hover:bg-slate-800 text-amber-300 border border-amber-400 rounded-xl text-xs font-black shadow-sm transition cursor-pointer"
+              >
+                <FileJson className="w-4 h-4 text-amber-300 shrink-0" />
+                <span>حفظ نسخة JSON مؤرخة إضافية على Google Drive</span>
+              </button>
+            </div>
+
+            {/* Auto-Backup Toggle & Connected Drive Files List */}
+            <div className="bg-white border border-emerald-300 rounded-xl p-2.5 space-y-2 text-xs">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <label className="flex items-center gap-2 font-black text-black cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={googleDriveAutoSync}
+                    onChange={(e) => {
+                      const val = e.target.checked;
+                      setGoogleDriveAutoSync(val);
+                      localStorage.setItem('TAMWEEN_GMAIL_DRIVE_AUTOSYNC', String(val));
+                    }}
+                    className="w-4 h-4 accent-emerald-700 rounded"
+                  />
+                  <span>تفعيل الحفظ التلقائي الفوري لملف JSON على Google Drive عند أي تعديل بالمنظومة</span>
+                </label>
+
+                {isDriveConnected && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await signOutGoogle();
+                      setIsDriveConnected(false);
+                      setDriveConnectedEmail(null);
+                      setDriveBackupFiles([]);
+                    }}
+                    className="text-[10px] font-black text-red-700 hover:underline cursor-pointer"
+                  >
+                    تبديل حساب Google
+                  </button>
+                )}
+              </div>
+
+              {driveBackupFiles.length > 0 && (
+                <div className="pt-2 border-t border-slate-200 space-y-1.5">
+                  <div className="flex items-center justify-between text-[11px] font-black text-black">
+                    <span>ملفات النسخ الاحتياطي JSON المحفوظة على Google Drive ({driveBackupFiles.length}):</span>
+                    <button
+                      type="button"
+                      onClick={() => refreshDriveFilesList(true)}
+                      className="text-blue-700 hover:underline cursor-pointer"
+                    >
+                      {isLoadingDriveFiles ? 'جاري التحديث...' : 'تحديث القائمة'}
+                    </button>
+                  </div>
+                  <div className="max-h-32 overflow-y-auto space-y-1">
+                    {driveBackupFiles.map((df) => (
+                      <div
+                        key={df.id}
+                        className="flex items-center justify-between gap-2 bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-300 text-[11px] font-black text-black"
+                      >
+                        <div className="truncate flex-1">
+                          <span className="font-mono">{df.name}</span>
+                          <span className="text-[10px] text-slate-600 mr-2">
+                            ({new Date(df.modifiedTime).toLocaleString('ar-EG')})
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              setIsProcessing(true);
+                              try {
+                                const raw = await downloadGoogleDriveFileJson(df.id, true);
+                                const extracted = extractAppStateFromArbitraryJson(raw);
+                                if (extracted) {
+                                  const beforeB = currentState.bakeries.length;
+                                  const beforeD = currentState.debts.length;
+                                  const merged = mergeStates(currentState, extracted);
+                                  onRestoreState(merged);
+                                  setStatusMsg({
+                                    text: `تم دمج ملف (${df.name}) من Google Drive بنجاح بدون مسح أي بيانات! أضيف (${Math.max(0, merged.bakeries.length - beforeB)}) مخبز و (${Math.max(0, merged.debts.length - beforeD)}) مديونية.`,
+                                    type: 'success',
+                                  });
+                                }
+                              } finally {
+                                setIsProcessing(false);
+                              }
+                            }}
+                            className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[10px] font-black cursor-pointer"
+                          >
+                            دمج بدون مسح
+                          </button>
+                          {df.webViewLink && (
+                            <a
+                              href={df.webViewLink}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-2 py-0.5 bg-blue-100 hover:bg-blue-200 text-black border border-blue-400 rounded text-[10px] font-black"
+                            >
+                              فتح في Drive
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
 
           {/* SECTION 1: PRIMARY USER REQUEST - Smart Upsert & Direct Working HTML Download */}
           <div className="p-4.5 bg-gradient-to-br from-amber-50 via-orange-50/50 to-amber-100/60 border-2 border-amber-500/80 rounded-2xl space-y-3.5 shadow-md">

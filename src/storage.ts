@@ -706,6 +706,14 @@ export async function persistFullState(state: Omit<AppState, 'currentUser'> & { 
       };
       localStorage.setItem('TAMWEEN_CUSTOM_BACKUP_PAYLOAD', JSON.stringify(drivePayload));
       localStorage.setItem(`TAMWEEN_GMAIL_DRIVE_SYNC_${gmailKey}`, JSON.stringify(drivePayload));
+
+      // Real Google Drive API background auto-save (when running in browser with an active Google token)
+      if (typeof window !== 'undefined') {
+        scheduleBackgroundGoogleDriveSync({
+          ...backupSnapshot.state,
+          currentUser: state.currentUser || null,
+        } as AppState);
+      }
     }
 
     // Continuous auto-backup to selected hard disk file
@@ -713,6 +721,23 @@ export async function persistFullState(state: Omit<AppState, 'currentUser'> & { 
   } catch {
     // Graceful fallback
   }
+}
+
+let driveAutoSyncTimeout: ReturnType<typeof setTimeout> | null = null;
+function scheduleBackgroundGoogleDriveSync(fullState: AppState) {
+  if (driveAutoSyncTimeout) {
+    clearTimeout(driveAutoSyncTimeout);
+  }
+  driveAutoSyncTimeout = setTimeout(async () => {
+    try {
+      const { hasValidAccessToken } = await import('./lib/firebase');
+      if (!hasValidAccessToken()) return;
+      const { uploadAndSyncJsonToGoogleDrive } = await import('./utils/googleDriveSync');
+      await uploadAndSyncJsonToGoogleDrive(fullState, { interactive: false });
+    } catch {
+      // Silent background sync fallback when token is not yet acquired
+    }
+  }, 1800);
 }
 
 export function getLatestAutoSaveInfo(): { timestamp: string | null; bakeryCount?: number; debtCount?: number } | null {

@@ -1,6 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Bakery, VillageHierarchy, AppUser, BakeryActivityLogItem } from '../types';
-import { formatDateDDMMYYYY } from '../utils/auditHelper';
+import { Bakery, VillageHierarchy, AppUser, BakeryActivityLogItem, CalculationConfig } from '../types';
+import {
+  formatDateDDMMYYYY,
+  DEFAULT_CALCULATION_CONFIG,
+  calculateInsuranceQuotaFromValue,
+  getBreadTypeLoavesRate,
+  calculateLoavesByBreadTypeAndBeneficiaries,
+  calculatePerCapitaFromLoavesAndActualQuota,
+} from '../utils/auditHelper';
 import {
   X,
   Calculator,
@@ -16,7 +23,8 @@ import {
   History,
   UserCheck,
   Clock,
-  ShieldCheck
+  ShieldCheck,
+  Sliders,
 } from 'lucide-react';
 
 interface BakeryModalProps {
@@ -32,6 +40,7 @@ interface BakeryModalProps {
   lineTypes?: string[];
   fuelTypes?: string[];
   currentUser?: AppUser | null;
+  calculationConfig?: CalculationConfig;
   onSave: (bakery: Bakery) => void;
   onAddActivityStatus?: (status: string) => void;
   onAddLocalUnit?: (village: string, unit: string) => void;
@@ -41,6 +50,7 @@ interface BakeryModalProps {
   ) => void;
   onUpdateVillages?: (updatedVillages: VillageHierarchy[]) => void;
   onOpenMasterDropdownEditor?: () => void;
+  onOpenCalculationStudio?: () => void;
 }
 
 export const BakeryModal: React.FC<BakeryModalProps> = ({
@@ -56,12 +66,14 @@ export const BakeryModal: React.FC<BakeryModalProps> = ({
   lineTypes = ['نصف آلي', 'آلي كامل', 'يدوي', 'ميكانيكي كامل'],
   fuelTypes = ['غاز طبيعي', 'سولار', 'مازوت', 'كهرباء'],
   currentUser,
+  calculationConfig = DEFAULT_CALCULATION_CONFIG,
   onSave,
   onAddActivityStatus,
   onAddLocalUnit,
   onUpdateDropdownList,
   onUpdateVillages,
   onOpenMasterDropdownEditor,
+  onOpenCalculationStudio,
 }) => {
   const isReadOnly = currentUser?.role === 'viewer';
   // Inline quick adds & full inline edit/delete manager for any dropdown
@@ -315,27 +327,79 @@ export const BakeryModal: React.FC<BakeryModalProps> = ({
     setSelectedUnit(units[0] || '');
   };
 
-  // Dedicated Auto-Calculation Engine (جميع المتوسطات بعلامة عشرية ورقمين فقط 0.00)
-  const calculateAllAverages = (customQuota?: number, customPop?: number, customB23?: number, customB24?: number, customB25?: number) => {
-    const q = customQuota !== undefined ? customQuota : insuranceQuota;
-    const pop = customPop !== undefined ? customPop : villagePopulation;
-    const b23 = customB23 !== undefined ? customB23 : beneficiaries2023;
-    const b24 = customB24 !== undefined ? customB24 : beneficiaries2024;
-    const b25 = customB25 !== undefined ? customB25 : beneficiaries2025;
+  // Dedicated Auto-Calculation Engine using updated supply formulas:
+  // 1) الحصة التأمينية = المبلغ التأميني / سعر الشيكارة / 3
+  // 2) عدد الأرغفة = (الحصة الفعلية * معامل نوع الخبز [ماو/مجر]) / عدد المستفيدين
+  // 3) متوسط نصيب الفرد = (عدد الأرغفة * الحصة الفعلية) / عدد السكان
+  const calculateAllAverages = (overrides?: {
+    insValue?: number;
+    bagPrice?: number;
+    insQuota?: number;
+    actQuota?: number;
+    bType?: string;
+    pop?: number;
+    b23?: number;
+    b24?: number;
+    b25?: number;
+  }) => {
+    const val = overrides?.insValue !== undefined ? overrides.insValue : insuranceValue;
+    const price = overrides?.bagPrice !== undefined ? overrides.bagPrice : flourBagPrice;
+    const bt = overrides?.bType !== undefined ? overrides.bType : breadType;
+    const pop = overrides?.pop !== undefined ? overrides.pop : villagePopulation;
+    const b23 = overrides?.b23 !== undefined ? overrides.b23 : beneficiaries2023;
+    const b24 = overrides?.b24 !== undefined ? overrides.b24 : beneficiaries2024;
+    const b25 = overrides?.b25 !== undefined ? overrides.b25 : beneficiaries2025;
 
-    const calculatedLoaves = Math.round(Number(q || 0) * 1350);
+    let computedInsQuota = overrides?.insQuota !== undefined ? overrides.insQuota : insuranceQuota;
+    if (
+      overrides?.insQuota === undefined &&
+      (calculationConfig.autoCalcInsuranceQuota ?? true) &&
+      val > 0 &&
+      price > 0
+    ) {
+      computedInsQuota = calculateInsuranceQuotaFromValue(
+        val,
+        price,
+        calculationConfig.insuranceDivisor || 3
+      );
+      setInsuranceQuota(computedInsQuota);
+    }
+
+    const actQ =
+      overrides?.actQuota !== undefined
+        ? overrides.actQuota
+        : actualQuota > 0
+        ? actualQuota
+        : computedInsQuota;
+
+    const primaryBen = b25 > 0 ? b25 : b24 > 0 ? b24 : b23;
+    const calculatedLoaves = calculateLoavesByBreadTypeAndBeneficiaries(
+      actQ,
+      bt,
+      primaryBen,
+      calculationConfig.loavesFormulaMode || 'ACTUAL_X_BREAD_DIV_BENEFICIARIES',
+      calculationConfig.breadTypeRates
+    );
     setLoavesCount(calculatedLoaves);
 
-    const calculatedPerCapita = pop > 0 ? (calculatedLoaves / pop).toFixed(2) : '0.00';
+    const calculatedPerCapita = calculatePerCapitaFromLoavesAndActualQuota(
+      calculatedLoaves,
+      actQ,
+      pop,
+      calculationConfig.perCapitaFormulaMode || 'LOAVES_X_ACTUAL_DIV_POPULATION'
+    );
     setPerCapitaAverage(calculatedPerCapita);
 
-    const cAvg23 = b23 > 0 ? (calculatedLoaves / b23).toFixed(2) : '0.00';
+    const breadRate = getBreadTypeLoavesRate(bt, calculationConfig.breadTypeRates);
+    const totalDailyLoaves = actQ * breadRate;
+
+    const cAvg23 = b23 > 0 ? (totalDailyLoaves / b23).toFixed(2) : '0.00';
     setAvg2023(cAvg23);
 
-    const cAvg24 = b24 > 0 ? (calculatedLoaves / b24).toFixed(2) : '0.00';
+    const cAvg24 = b24 > 0 ? (totalDailyLoaves / b24).toFixed(2) : '0.00';
     setAvg2024(cAvg24);
 
-    const cAvg25 = b25 > 0 ? (calculatedLoaves / b25).toFixed(2) : '0.00';
+    const cAvg25 = b25 > 0 ? (totalDailyLoaves / b25).toFixed(2) : '0.00';
     setAvg2025(cAvg25);
 
     const diff = (parseFloat(cAvg25) - parseFloat(cAvg23)).toFixed(2);
@@ -639,22 +703,41 @@ export const BakeryModal: React.FC<BakeryModalProps> = ({
               </ul>
             </div>
           )}
-          {/* Quick Recalculate Toolbar */}
-          <div className="bg-amber-50 border-2 border-amber-200 p-3 rounded-xl flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2 text-amber-900">
-              <Calculator className="w-5 h-5 text-amber-700" />
-              <span className="text-xs font-black">
-                المعيار التمويني المعتمد: الحصة التأمينية × 1350 رغيفاً للشيكارة الواحدة
-              </span>
+          {/* Quick Recalculate & Formula Studio Toolbar */}
+          <div className="bg-amber-50 border-2 border-amber-400 p-3.5 rounded-xl flex flex-wrap items-center justify-between gap-3">
+            <div className="space-y-1 text-black">
+              <div className="flex items-center gap-2">
+                <Calculator className="w-5 h-5 text-amber-800 shrink-0" />
+                <span className="text-xs font-black text-black">
+                  المعادلات المعتمدة: الحصة التأمينية = المبلغ التأميني ÷ سعر الشيكارة ÷ {calculationConfig.insuranceDivisor || 3}
+                </span>
+              </div>
+              <p className="text-[11px] font-black text-slate-900">
+                • عدد الأرغفة = (الحصة الفعلية × معامل نوع الخبز [{breadType}: {getBreadTypeLoavesRate(breadType, calculationConfig.breadTypeRates)}]) ÷ عدد المستفيدين | متوسط نصيب الفرد = (عدد الأرغفة × الحصة الفعلية) ÷ عدد السكان
+              </p>
             </div>
-            <button
-              type="button"
-              onClick={() => calculateAllAverages()}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-700 hover:bg-amber-800 text-white rounded-lg text-xs font-black shadow-sm transition cursor-pointer"
-            >
-              <Calculator className="w-3.5 h-3.5" />
-              إعادة الحساب التلقائي لكافة الحصص والمتوسطات
-            </button>
+            <div className="flex items-center flex-wrap gap-2">
+              {onOpenCalculationStudio && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onOpenCalculationStudio();
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-amber-300 border border-amber-400 rounded-lg text-xs font-black shadow-sm transition cursor-pointer"
+                >
+                  <Sliders className="w-3.5 h-3.5" />
+                  <span>مشاركة وتعديل معادلات الاحتساب</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => calculateAllAverages()}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-700 hover:bg-amber-800 text-white rounded-lg text-xs font-black shadow-sm transition cursor-pointer"
+              >
+                <Calculator className="w-3.5 h-3.5" />
+                <span>إعادة الاحتساب التلقائي الآن</span>
+              </button>
+            </div>
           </div>
 
           {/* Section 1: Basic Info & Village */}
@@ -896,7 +979,11 @@ export const BakeryModal: React.FC<BakeryModalProps> = ({
                 </div>
                 <select
                   value={breadType}
-                  onChange={(e) => setBreadType(e.target.value)}
+                  onChange={(e) => {
+                    const newBt = e.target.value;
+                    setBreadType(newBt);
+                    calculateAllAverages({ bType: newBt });
+                  }}
                   className="w-full px-2.5 py-2 bg-white border border-slate-300 rounded-lg text-xs font-black text-slate-900 focus:ring-2 focus:ring-amber-500"
                 >
                   {breadTypes.map((bt) => (
@@ -918,7 +1005,11 @@ export const BakeryModal: React.FC<BakeryModalProps> = ({
                 <input
                   type="number"
                   value={flourBagPrice}
-                  onChange={(e) => setFlourBagPrice(parseFloat(e.target.value) || 0)}
+                  onChange={(e) => {
+                    const newPrice = parseFloat(e.target.value) || 0;
+                    setFlourBagPrice(newPrice);
+                    calculateAllAverages({ bagPrice: newPrice });
+                  }}
                   placeholder="950"
                   className="w-full px-2.5 py-2 bg-amber-50 border border-amber-300 rounded-lg text-xs font-black text-slate-900 focus:ring-2 focus:ring-amber-500 num-enlarged text-center"
                 />
@@ -1274,6 +1365,7 @@ export const BakeryModal: React.FC<BakeryModalProps> = ({
                   onChange={(e) => {
                     const v = parseFloat(e.target.value) || 0;
                     setInsuranceValue(v);
+                    calculateAllAverages({ insValue: v });
                     if (v >= 0) setErrors((prev) => ({ ...prev, insuranceValue: '' }));
                   }}
                   className={`w-full px-3 py-2 bg-white border rounded-lg text-xs font-black text-slate-900 focus:ring-2 focus:ring-amber-500 num-enlarged text-center ${
@@ -1291,16 +1383,16 @@ export const BakeryModal: React.FC<BakeryModalProps> = ({
               {/* 2. الحصة التأمينية */}
               <div>
                 <label className="block text-xs font-black text-slate-700 mb-1">
-                  الحصة التأمينية (بالشيكارة) *
+                  الحصة التأمينية (المبلغ÷الشيكارة÷3) *
                 </label>
                 <input
                   type="number"
-                  step="0.5"
+                  step="0.01"
                   value={insuranceQuota}
                   onChange={(e) => {
                     const q = parseFloat(e.target.value) || 0;
                     setInsuranceQuota(q);
-                    calculateAllAverages(q);
+                    calculateAllAverages({ insQuota: q });
                     if (q > 0) setErrors((prev) => ({ ...prev, insuranceQuota: '' }));
                   }}
                   className={`w-full px-3 py-2 bg-white border rounded-lg text-xs font-black text-slate-900 focus:ring-2 focus:ring-amber-500 num-enlarged text-center ${
@@ -1327,6 +1419,7 @@ export const BakeryModal: React.FC<BakeryModalProps> = ({
                   onChange={(e) => {
                     const q = parseFloat(e.target.value) || 0;
                     setActualQuota(q);
+                    calculateAllAverages({ actQuota: q });
                     if (q >= 0) setErrors((prev) => ({ ...prev, actualQuota: '' }));
                   }}
                   className={`w-full px-3 py-2 bg-white border rounded-lg text-xs font-black text-slate-900 focus:ring-2 focus:ring-amber-500 num-enlarged text-center ${
@@ -1344,14 +1437,22 @@ export const BakeryModal: React.FC<BakeryModalProps> = ({
               {/* 4. الأرغفة اليومية */}
               <div>
                 <label className="block text-xs font-black text-slate-700 mb-1">
-                  الأرغفة اليومية (الحصة × 1350) *
+                  عدد الأرغفة (الحصة الفعلية×الخبز÷المستفيدين) *
                 </label>
                 <input
                   type="number"
+                  step="0.01"
                   value={loavesCount}
                   onChange={(e) => {
                     const l = Number(e.target.value) || 0;
                     setLoavesCount(l);
+                    const newPerCapita = calculatePerCapitaFromLoavesAndActualQuota(
+                      l,
+                      actualQuota,
+                      villagePopulation,
+                      calculationConfig.perCapitaFormulaMode || 'LOAVES_X_ACTUAL_DIV_POPULATION'
+                    );
+                    setPerCapitaAverage(newPerCapita);
                     if (l > 0) setErrors((prev) => ({ ...prev, loavesCount: '' }));
                   }}
                   className={`w-full px-3 py-2 border-2 rounded-lg text-xs font-black num-enlarged text-center ${
@@ -1369,7 +1470,7 @@ export const BakeryModal: React.FC<BakeryModalProps> = ({
               {/* 5. متوسط نصيب الفرد للمخبز */}
               <div>
                 <label className="block text-xs font-black text-slate-700 mb-1">
-                  متوسط نصيب الفرد للمخبز
+                  متوسط نصيب الفرد (الأرغفة×الفعلية÷السكان)
                 </label>
                 <input
                   type="text"
@@ -1399,7 +1500,7 @@ export const BakeryModal: React.FC<BakeryModalProps> = ({
                   onChange={(e) => {
                     const pop = parseInt(e.target.value) || 0;
                     setVillagePopulation(pop);
-                    calculateAllAverages(insuranceQuota, pop);
+                    calculateAllAverages({ pop });
                   }}
                   className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-black text-slate-900 focus:ring-2 focus:ring-amber-500 num-enlarged text-center"
                 />
@@ -1414,7 +1515,7 @@ export const BakeryModal: React.FC<BakeryModalProps> = ({
                   onChange={(e) => {
                     const b = parseInt(e.target.value) || 0;
                     setBeneficiaries2023(b);
-                    calculateAllAverages(insuranceQuota, villagePopulation, b);
+                    calculateAllAverages({ b23: b });
                   }}
                   className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-black text-slate-900 focus:ring-2 focus:ring-amber-500 num-enlarged text-center"
                 />
@@ -1429,7 +1530,7 @@ export const BakeryModal: React.FC<BakeryModalProps> = ({
                   onChange={(e) => {
                     const b = parseInt(e.target.value) || 0;
                     setBeneficiaries2024(b);
-                    calculateAllAverages(insuranceQuota, villagePopulation, beneficiaries2023, b);
+                    calculateAllAverages({ b24: b });
                   }}
                   className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-black text-slate-900 focus:ring-2 focus:ring-amber-500 num-enlarged text-center"
                 />
@@ -1444,7 +1545,7 @@ export const BakeryModal: React.FC<BakeryModalProps> = ({
                   onChange={(e) => {
                     const b = parseInt(e.target.value) || 0;
                     setBeneficiaries2025(b);
-                    calculateAllAverages(insuranceQuota, villagePopulation, beneficiaries2023, beneficiaries2024, b);
+                    calculateAllAverages({ b25: b });
                   }}
                   className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-black text-slate-900 focus:ring-2 focus:ring-amber-500 num-enlarged text-center"
                 />
